@@ -616,17 +616,35 @@
 
       if (!clip || trackIndex === -1) return;
 
-      // Calculate new value from vertical position (Y axis)
+      // Find the automation curve and calculate its lane offset
       const clipY = trackIndexToY(trackIndex);
-      const automationY = clipY + TRACK_HEIGHT;
+      let laneIndex = 0;
+      let curve = null;
+
+      // Find which lane the selected keyframe's parameter is in
+      for (let i = 0; i < clip.automation.length; i++) {
+        if (clip.automation[i].keyframes.length > 0) {
+          if (clip.automation[i].parameterName === selectedKeyframe.paramName) {
+            curve = clip.automation[i];
+            laneIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (!curve) return;
+
+      // Calculate Y position for this specific lane
+      let automationY = clipY + TRACK_HEIGHT;
+      for (let i = 0; i < laneIndex; i++) {
+        if (clip.automation[i].keyframes.length > 0) {
+          automationY += AUTOMATION_LANE_HEIGHT;
+        }
+      }
+
       const relativeY = y - automationY;
       // Normalize to 0-1 range, inverted (top = 1.0, bottom = 0.0)
       const desiredValue = 1 - relativeY / AUTOMATION_LANE_HEIGHT;
-
-      // Find the automation curve
-      const curve = clip.automation.find(
-        (c) => c.parameterName === selectedKeyframe.paramName
-      );
 
       if (curve && curve.keyframes.length > 0) {
         try {
