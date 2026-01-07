@@ -34,7 +34,11 @@
   let hoveredClip: { clip: Clip; trackIndex: number } | null = null;
   let isDraggingOver = false;
   let dropTargetTrack = -1;
-  let draggedKeyframe: { clipId: string; paramName: string; time: number } | null = null;
+  let draggedKeyframe: {
+    clipId: string;
+    paramName: string;
+    time: number;
+  } | null = null;
   let hoveredParameter: { clipId: string; paramName: string } | null = null;
 
   // Helper functions
@@ -61,7 +65,9 @@
 
     // Add height for automation lanes (only for parameters with keyframes)
     for (const clip of track.clips) {
-      const automationCount = clip.automation.filter(c => c.keyframes.length > 0).length;
+      const automationCount = clip.automation.filter(
+        (c) => c.keyframes.length > 0
+      ).length;
       height += automationCount * AUTOMATION_LANE_HEIGHT;
     }
     return height;
@@ -69,7 +75,7 @@
 
   function yToTrackIndex(y: number): number {
     if (y < RULER_HEIGHT) return -1;
-    
+
     let currentY = RULER_HEIGHT;
     for (let i = 0; i < $timeline.tracks.length; i++) {
       const trackHeight = getTrackHeight(i);
@@ -174,7 +180,7 @@
       // Draw track background
       const isSelected = $timelineView.selectedTrackId === track.id;
       const isDropTarget = isDraggingOver && dropTargetTrack === index;
-      
+
       if (isDropTarget) {
         ctx!.fillStyle = "#3a5a7a";
       } else if (isSelected) {
@@ -318,7 +324,8 @@
 
     curve.keyframes.forEach((keyframe, i) => {
       const kfX = clipX + keyframe.time * $timelineView.pixelsPerSecond;
-      const normalizedValue = (keyframe.value - minValue) / (maxValue - minValue);
+      const normalizedValue =
+        (keyframe.value - minValue) / (maxValue - minValue);
       const kfY = laneY + laneHeight - normalizedValue * laneHeight + 2;
 
       if (i === 0) {
@@ -332,7 +339,8 @@
     // Draw keyframe diamonds
     curve.keyframes.forEach((keyframe) => {
       const kfX = clipX + keyframe.time * $timelineView.pixelsPerSecond;
-      const normalizedValue = (keyframe.value - minValue) / (maxValue - minValue);
+      const normalizedValue =
+        (keyframe.value - minValue) / (maxValue - minValue);
       const kfY = laneY + laneHeight - normalizedValue * laneHeight + 2;
 
       ctx!.save();
@@ -520,12 +528,12 @@
     if (e.dataTransfer) {
       e.dataTransfer.dropEffect = "copy";
     }
-    
+
     // Track which track we're hovering over
     const rect = canvas.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const trackIndex = yToTrackIndex(y);
-    
+
     if (trackIndex >= 0 && trackIndex < $timeline.tracks.length) {
       isDraggingOver = true;
       dropTargetTrack = trackIndex;
@@ -535,7 +543,7 @@
       dropTargetTrack = -1;
     }
   }
-  
+
   function handleDragLeave() {
     isDraggingOver = false;
     dropTargetTrack = -1;
@@ -553,7 +561,7 @@
       if (!dataStr) {
         dataStr = e.dataTransfer.getData("text/plain");
       }
-      
+
       if (!dataStr) {
         console.log("No data found in drop event");
         return;
@@ -587,7 +595,7 @@
     } catch (error) {
       console.error("Failed to handle drop:", error);
     }
-    
+
     isDraggingOver = false;
     dropTargetTrack = -1;
   }

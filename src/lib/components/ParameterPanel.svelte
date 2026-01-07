@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { timeline, timelineView, timelineActions } from "$lib/stores/timeline";
+  import {
+    timeline,
+    timelineView,
+    timelineActions,
+  } from "$lib/stores/timeline";
   import { playback } from "$lib/stores/playback";
   import { getParameterValue } from "$lib/timeline/types";
   import type { Clip, Keyframe } from "$lib/timeline/types";
@@ -28,8 +32,14 @@
   }
 
   // Get local time within clip
-  $: localTime = selectedClip 
-    ? Math.max(0, Math.min($playback.currentTime - selectedClip.startTime, selectedClip.duration))
+  $: localTime = selectedClip
+    ? Math.max(
+        0,
+        Math.min(
+          $playback.currentTime - selectedClip.startTime,
+          selectedClip.duration
+        )
+      )
     : 0;
 
   function handleImageSelect() {
@@ -67,33 +77,44 @@
 
   function hasKeyframes(paramName: string): boolean {
     if (!selectedClip) return false;
-    const curve = selectedClip.automation.find(c => c.parameterName === paramName);
+    const curve = selectedClip.automation.find(
+      (c) => c.parameterName === paramName
+    );
     return curve ? curve.keyframes.length > 0 : false;
   }
 
   function getKeyframeCount(paramName: string): number {
     if (!selectedClip) return 0;
-    const curve = selectedClip.automation.find(c => c.parameterName === paramName);
+    const curve = selectedClip.automation.find(
+      (c) => c.parameterName === paramName
+    );
     return curve ? curve.keyframes.length : 0;
   }
 
   function hasKeyframeAtCurrentTime(paramName: string): boolean {
     if (!selectedClip) return false;
-    const curve = selectedClip.automation.find(c => c.parameterName === paramName);
+    const curve = selectedClip.automation.find(
+      (c) => c.parameterName === paramName
+    );
     if (!curve) return false;
-    return curve.keyframes.some(kf => Math.abs(kf.time - localTime) < 0.01);
+    return curve.keyframes.some((kf) => Math.abs(kf.time - localTime) < 0.01);
   }
 
   function addKeyframe(paramName: string) {
     if (!selectedClip) return;
-    
+
     const currentValue = selectedClip.parameters[paramName];
-    if (typeof currentValue !== 'number') {
-      console.warn('Can only animate numeric parameters');
+    if (typeof currentValue !== "number") {
+      console.warn("Can only animate numeric parameters");
       return;
     }
 
-    timelineActions.addKeyframe(selectedClip.id, paramName, localTime, currentValue);
+    timelineActions.addKeyframe(
+      selectedClip.id,
+      paramName,
+      localTime,
+      currentValue
+    );
   }
 
   function removeKeyframe(paramName: string) {
@@ -103,10 +124,15 @@
 
   function updateParameterValue(paramName: string, value: number) {
     if (!selectedClip) return;
-    
+
     if (hasKeyframeAtCurrentTime(paramName)) {
       // Update keyframe value
-      timelineActions.updateKeyframe(selectedClip.id, paramName, localTime, value);
+      timelineActions.updateKeyframe(
+        selectedClip.id,
+        paramName,
+        localTime,
+        value
+      );
     } else {
       // Update base parameter value
       timelineActions.updateParameter(selectedClip.id, paramName, value);
@@ -117,7 +143,6 @@
     if (!selectedClip) return;
     timelineActions.clearKeyframes(selectedClip.id, paramName);
   }
-
 </script>
 
 <div class="parameter-panel">
@@ -172,19 +197,25 @@
 
         {#if Object.keys(selectedClip.parameters).length > 0}
           {#each Object.entries(selectedClip.parameters) as [name, value]}
-            {#if typeof value === 'number'}
-              <div class="parameter-row animatable" class:selected={selectedParameter === name}>
+            {#if typeof value === "number"}
+              <div
+                class="parameter-row animatable"
+                class:selected={selectedParameter === name}
+              >
                 <div class="param-header">
                   <span class="param-name">{name}</span>
                   <div class="keyframe-controls">
                     {#if hasKeyframes(name)}
-                      <span class="keyframe-count" title="{getKeyframeCount(name)} keyframes">
+                      <span
+                        class="keyframe-count"
+                        title="{getKeyframeCount(name)} keyframes"
+                      >
                         ◆ {getKeyframeCount(name)}
                       </span>
                     {/if}
-                    
+
                     {#if hasKeyframeAtCurrentTime(name)}
-                      <button 
+                      <button
                         class="keyframe-btn active"
                         on:click={() => removeKeyframe(name)}
                         title="Remove keyframe (current time has keyframe)"
@@ -192,7 +223,7 @@
                         ◆
                       </button>
                     {:else}
-                      <button 
+                      <button
                         class="keyframe-btn"
                         on:click={() => addKeyframe(name)}
                         title="Add keyframe at current time"
@@ -200,9 +231,9 @@
                         ◇
                       </button>
                     {/if}
-                    
+
                     {#if hasKeyframes(name)}
-                      <button 
+                      <button
                         class="clear-btn"
                         on:click={() => clearAllKeyframes(name)}
                         title="Clear all keyframes"
@@ -212,30 +243,40 @@
                     {/if}
                   </div>
                 </div>
-                
+
                 <div class="param-input">
-                  <input 
+                  <input
                     type="range"
                     min="0"
                     max="1"
                     step="0.01"
-                    value={value}
-                    on:input={(e) => updateParameterValue(name, parseFloat(e.currentTarget.value))}
+                    {value}
+                    on:input={(e) =>
+                      updateParameterValue(
+                        name,
+                        parseFloat(e.currentTarget.value)
+                      )}
                   />
-                  <input 
+                  <input
                     type="number"
                     min="0"
                     max="1"
                     step="0.01"
-                    value={value}
-                    on:input={(e) => updateParameterValue(name, parseFloat(e.currentTarget.value))}
+                    {value}
+                    on:input={(e) =>
+                      updateParameterValue(
+                        name,
+                        parseFloat(e.currentTarget.value)
+                      )}
                   />
                 </div>
               </div>
             {:else}
               <div class="parameter-row">
                 <span class="param-name">{name}:</span>
-                <span class="param-value">{getParameterDisplay(name, value)}</span>
+                <span class="param-value"
+                  >{getParameterDisplay(name, value)}</span
+                >
               </div>
             {/if}
           {/each}
