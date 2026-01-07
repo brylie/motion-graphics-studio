@@ -1,0 +1,533 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import {
+    timeline,
+    timelineView,
+    timelineActions,
+    viewActions,
+  } from "$lib/stores/timeline";
+  import { playback, playbackActions } from "$lib/stores/playback";
+  import type { Clip, Track } from "$lib/timeline/types";
+
+  let canvas: HTMLCanvasElement;
+  let ctx: CanvasRenderingContext2D | null;
+  let width = 1200;
+  let height = 400;
+
+  // Constants
+  const TRACK_HEIGHT = 60;
+  const TRACK_MARGIN = 5;
+  const RULER_HEIGHT = 30;
+  const HANDLE_WIDTH = 8;
+  const MIN_CLIP_WIDTH = 20;
+
+  // Interaction state
+  let isDragging = false;
+  let isResizing = false;
+  let resizeHandle: "left" | "right" | null = null;
+  let dragStartX = 0;
+  let dragStartTime = 0;
+  let draggedClip: Clip | null = null;
+  let draggedTrackIndex = -1;
+  let hoveredClip: { clip: Clip; trackIndex: number } | null = null;
+  let isDraggingOver = false;
+  let dropTargetTrack = -1;
+
+  // Helper functions
+  function timeToX(time: number): number {
+    return time * $timelineView.pixelsPerSecond - $timelineView.scrollX;
+  }
+
+  function xToTime(x: number): number {
+    return (x + $timelineView.scrollX) / $timelineView.pixelsPerSecond;
+  }
+
+  function trackIndexToY(trackIndex: number): number {
+    return RULER_HEIGHT + trackIndex * (TRACK_HEIGHT + TRACK_MARGIN);
+  }
+
+  function yToTrackIndex(y: number): number {
+    if (y < RULER_HEIGHT) return -1;
+    return Math.floor((y - RULER_HEIGHT) / (TRACK_HEIGHT + TRACK_MARGIN));
+  }
+
+  function getClipAtPosition(
+    x: number,
+    y: number
+  ): { clip: Clip; trackIndex: number } | null {
+    const time = xToTime(x);
+    const trackIndex = yToTrackIndex(y);
+
+    if (trackIndex < 0 || trackIndex >= $timeline.tracks.length) return null;
+
+    const track = $timeline.tracks[trackIndex];
+    const clip = track.clips.find((c) => {
+      return time >= c.startTime && time <= c.startTime + c.duration;
+    });
+
+    return clip ? { clip, trackIndex } : null;
+  }
+
+  function getResizeHandle(
+    clip: Clip,
+    trackIndex: number,
+    x: number,
+    y: number
+  ): "left" | "right" | null {
+    const clipX = timeToX(clip.startTime);
+    const clipY = trackIndexToY(trackIndex);
+    const clipWidth = clip.duration * $timelineView.pixelsPerSecond;
+
+    if (y < clipY || y > clipY + TRACK_HEIGHT) return null;
+
+    if (Math.abs(x - clipX) < HANDLE_WIDTH) return "left";
+    if (Math.abs(x - (clipX + clipWidth)) < HANDLE_WIDTH) return "right";
+
+    return null;
+  }
+
+  function snapTime(time: number, gridSize: number = 0.1): number {
+    return Math.round(time / gridSize) * gridSize;
+  }
+
+  // Drawing functions
+  function drawRuler() {
+    if (!ctx) return;
+
+    ctx.fillStyle = "#2b2b2b";
+    ctx.fillRect(0, 0, width, RULER_HEIGHT);
+
+    // Draw time markers
+    const startTime = xToTime(0);
+    const endTime = xToTime(width);
+    const step = $timelineView.pixelsPerSecond > 50 ? 1 : 5; // 1 second or 5 seconds
+
+    ctx.strokeStyle = "#555";
+    ctx.fillStyle = "#ccc";
+    ctx.font = "11px monospace";
+    ctx.textAlign = "center";
+
+    for (let t = Math.floor(startTime); t <= Math.ceil(endTime); t += step) {
+      const x = timeToX(t);
+      if (x < 0 || x > width) continue;
+
+      // Draw tick
+      ctx.beginPath();
+      ctx.moveTo(x, RULER_HEIGHT - 10);
+      ctx.lineTo(x, RULER_HEIGHT);
+      ctx.stroke();
+
+      // Draw label
+      ctx.fillText(`${t}s`, x, RULER_HEIGHT - 15);
+    }
+
+    // Draw grid lines
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 1;
+    for (let t = Math.floor(startTime); t <= Math.ceil(endTime); t += step) {
+      const x = timeToX(t);
+      if (x < 0 || x > width) continue;
+
+      ctx.beginPath();
+      ctx.moveTo(x, RULER_HEIGHT);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+  }
+
+  function drawTracks() {
+    if (!ctx) return;
+
+    $timeline.tracks.forEach((track, index) => {
+      const y = trackIndexToY(index);
+
+      // Draw track background
+      const isSelected = $timelineView.selectedTrackId === track.id;
+      const isDropTarget = isDraggingOver && dropTargetTrack === index;
+      
+      if (isDropTarget) {
+        ctx!.fillStyle = "#3a5a7a";
+      } else if (isSelected) {
+        ctx!.fillStyle = "#2a2a2a";
+      } else {
+        ctx!.fillStyle = "#1e1e1e";
+      }
+      ctx!.fillRect(0, y, width, TRACK_HEIGHT);
+
+      // Draw track border
+      ctx!.strokeStyle = isDropTarget ? "#6a9fc7" : "#444";
+      ctx!.lineWidth = isDropTarget ? 2 : 1;
+      ctx!.strokeRect(0, y, width, TRACK_HEIGHT);
+
+      // Draw track label
+      ctx!.fillStyle = track.muted ? "#666" : "#aaa";
+      ctx!.font = "12px sans-serif";
+      ctx!.textAlign = "left";
+      ctx!.fillText(`Track ${index + 1}`, 5, y + 15);
+      if (track.solo) {
+        ctx!.fillStyle = "#ff0";
+        ctx!.fillText("S", 65, y + 15);
+      }
+      if (track.muted) {
+        ctx!.fillStyle = "#f00";
+        ctx!.fillText("M", 80, y + 15);
+      }
+    });
+  }
+
+  function drawClips() {
+    if (!ctx) return;
+
+    $timeline.tracks.forEach((track, trackIndex) => {
+      const y = trackIndexToY(trackIndex);
+
+      track.clips.forEach((clip) => {
+        const x = timeToX(clip.startTime);
+        const clipWidth = Math.max(
+          MIN_CLIP_WIDTH,
+          clip.duration * $timelineView.pixelsPerSecond
+        );
+
+        // Skip if out of view
+        if (x + clipWidth < 0 || x > width) return;
+
+        // Determine clip color
+        const isSelected = $timelineView.selectedClipId === clip.id;
+        const isHovered = hoveredClip?.clip.id === clip.id;
+
+        let fillColor = "#4a7ba7";
+        if (isSelected) fillColor = "#6a9fc7";
+        if (isHovered) fillColor = "#5a8bb7";
+
+        // Draw clip body
+        ctx!.fillStyle = fillColor;
+        ctx!.fillRect(x, y + 2, clipWidth, TRACK_HEIGHT - 4);
+
+        // Draw clip border
+        ctx!.strokeStyle = isSelected ? "#8ac9ff" : "#7a9fb7";
+        ctx!.lineWidth = isSelected ? 2 : 1;
+        ctx!.strokeRect(x, y + 2, clipWidth, TRACK_HEIGHT - 4);
+
+        // Draw resize handles
+        if (isSelected || isHovered) {
+          ctx!.fillStyle = "#fff";
+          ctx!.fillRect(x, y + 2, HANDLE_WIDTH, TRACK_HEIGHT - 4);
+          ctx!.fillRect(
+            x + clipWidth - HANDLE_WIDTH,
+            y + 2,
+            HANDLE_WIDTH,
+            TRACK_HEIGHT - 4
+          );
+        }
+
+        // Draw clip label
+        ctx!.fillStyle = "#fff";
+        ctx!.font = "11px sans-serif";
+        ctx!.textAlign = "left";
+        const label = clip.shaderId || "Clip";
+        ctx!.save();
+        ctx!.beginPath();
+        ctx!.rect(x + 2, y + 2, clipWidth - 4, TRACK_HEIGHT - 4);
+        ctx!.clip();
+        ctx!.fillText(label, x + 10, y + 20);
+        ctx!.restore();
+
+        // Draw duration
+        ctx!.fillStyle = "#ccc";
+        ctx!.font = "10px monospace";
+        ctx!.fillText(`${clip.duration.toFixed(1)}s`, x + 10, y + 35);
+      });
+    });
+  }
+
+  function drawPlayhead() {
+    if (!ctx) return;
+
+    const x = timeToX($playback.currentTime);
+
+    // Draw playhead line
+    ctx.strokeStyle = "#ff3333";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+
+    // Draw playhead triangle
+    ctx.fillStyle = "#ff3333";
+    ctx.beginPath();
+    ctx.moveTo(x, RULER_HEIGHT);
+    ctx.lineTo(x - 6, RULER_HEIGHT - 10);
+    ctx.lineTo(x + 6, RULER_HEIGHT - 10);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function render() {
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.fillStyle = "#1a1a1a";
+    ctx.fillRect(0, 0, width, height);
+
+    drawRuler();
+    drawTracks();
+    drawClips();
+    drawPlayhead();
+  }
+
+  // Event handlers
+  function handleMouseDown(e: MouseEvent) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Check if clicking on playhead in ruler
+    if (y < RULER_HEIGHT) {
+      const clickTime = xToTime(x);
+      playbackActions.seek(clickTime);
+      return;
+    }
+
+    // Check for clip interaction
+    const clipAtPos = getClipAtPosition(x, y);
+    if (clipAtPos) {
+      const { clip, trackIndex } = clipAtPos;
+      viewActions.selectClip(clip.id);
+
+      // Check for resize handle
+      const handle = getResizeHandle(clip, trackIndex, x, y);
+      if (handle) {
+        isResizing = true;
+        resizeHandle = handle;
+        draggedClip = clip;
+        draggedTrackIndex = trackIndex;
+        dragStartX = x;
+        dragStartTime =
+          handle === "left" ? clip.startTime : clip.startTime + clip.duration;
+      } else {
+        isDragging = true;
+        draggedClip = clip;
+        draggedTrackIndex = trackIndex;
+        dragStartX = x;
+        dragStartTime = clip.startTime;
+      }
+    } else {
+      viewActions.selectClip(null);
+    }
+  }
+
+  function handleMouseMove(e: MouseEvent) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Update hovered clip
+    hoveredClip = getClipAtPosition(x, y);
+
+    // Update cursor
+    if (hoveredClip) {
+      const handle = getResizeHandle(
+        hoveredClip.clip,
+        hoveredClip.trackIndex,
+        x,
+        y
+      );
+      canvas.style.cursor = handle ? "ew-resize" : "move";
+    } else {
+      canvas.style.cursor = "default";
+    }
+
+    // Handle dragging
+    if (isDragging && draggedClip) {
+      const deltaX = x - dragStartX;
+      const deltaTime = deltaX / $timelineView.pixelsPerSecond;
+      const newTime = snapTime(Math.max(0, dragStartTime + deltaTime));
+      timelineActions.updateClipTime(draggedClip.id, newTime);
+    }
+
+    // Handle resizing
+    if (isResizing && draggedClip && resizeHandle) {
+      const currentTime = xToTime(x);
+      const snappedTime = snapTime(currentTime);
+
+      if (resizeHandle === "left") {
+        const maxStart = draggedClip.startTime + draggedClip.duration - 0.1;
+        const newStart = Math.min(snappedTime, maxStart);
+        const newDuration =
+          draggedClip.startTime + draggedClip.duration - newStart;
+        timelineActions.updateClipTime(draggedClip.id, newStart);
+        timelineActions.updateClipDuration(draggedClip.id, newDuration);
+      } else {
+        const minEnd = draggedClip.startTime + 0.1;
+        const newEnd = Math.max(snappedTime, minEnd);
+        const newDuration = newEnd - draggedClip.startTime;
+        timelineActions.updateClipDuration(draggedClip.id, newDuration);
+      }
+    }
+
+    render();
+  }
+
+  function handleMouseUp() {
+    isDragging = false;
+    isResizing = false;
+    resizeHandle = null;
+    draggedClip = null;
+    draggedTrackIndex = -1;
+    render();
+  }
+
+  function handleWheel(e: WheelEvent) {
+    e.preventDefault();
+
+    if (e.ctrlKey || e.metaKey) {
+      // Zoom
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(
+        10,
+        Math.min(200, $timelineView.pixelsPerSecond * zoomFactor)
+      );
+      viewActions.setZoom(newZoom);
+    } else {
+      // Scroll
+      const scrollAmount = e.deltaY;
+      viewActions.setScroll($timelineView.scrollX + scrollAmount);
+    }
+
+    render();
+  }
+
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+    
+    // Track which track we're hovering over
+    const rect = canvas.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const trackIndex = yToTrackIndex(y);
+    
+    if (trackIndex >= 0 && trackIndex < $timeline.tracks.length) {
+      isDraggingOver = true;
+      dropTargetTrack = trackIndex;
+      render();
+    } else {
+      isDraggingOver = false;
+      dropTargetTrack = -1;
+    }
+  }
+  
+  function handleDragLeave() {
+    isDraggingOver = false;
+    dropTargetTrack = -1;
+    render();
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+
+    if (!e.dataTransfer) return;
+
+    try {
+      // Try to get data from different formats
+      let dataStr = e.dataTransfer.getData("application/json");
+      if (!dataStr) {
+        dataStr = e.dataTransfer.getData("text/plain");
+      }
+      
+      if (!dataStr) {
+        console.log("No data found in drop event");
+        return;
+      }
+
+      const data = JSON.parse(dataStr);
+      console.log("Drop data:", data);
+
+      if (data.type === "shader" && data.shaderId) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // Determine drop time and track
+        const dropTime = snapTime(Math.max(0, xToTime(x)));
+        const trackIndex = yToTrackIndex(y);
+
+        console.log(`Dropping shader at track ${trackIndex}, time ${dropTime}`);
+
+        // Add clip to the appropriate track
+        if (trackIndex >= 0 && trackIndex < $timeline.tracks.length) {
+          const trackId = $timeline.tracks[trackIndex].id;
+          timelineActions.addClip(trackId, data.shaderId, dropTime, 5.0);
+          isDraggingOver = false;
+          dropTargetTrack = -1;
+          render();
+        } else {
+          console.log(`Invalid track index: ${trackIndex}`);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to handle drop:", error);
+    }
+    
+    isDraggingOver = false;
+    dropTargetTrack = -1;
+  }
+
+  onMount(() => {
+    ctx = canvas.getContext("2d");
+    if (!ctx) {
+      console.error("Failed to get 2D context");
+      return;
+    }
+
+    // Set canvas size
+    canvas.width = width;
+    canvas.height = height;
+
+    // Initial render
+    render();
+
+    // Subscribe to store changes
+    const unsubscribers = [
+      timeline.subscribe(() => render()),
+      timelineView.subscribe(() => render()),
+      playback.subscribe(() => render()),
+    ];
+
+    return () => {
+      unsubscribers.forEach((u) => u());
+    };
+  });
+</script>
+
+<div class="timeline-container">
+  <canvas
+    bind:this={canvas}
+    on:mousedown={handleMouseDown}
+    on:mousemove={handleMouseMove}
+    on:mouseup={handleMouseUp}
+    on:mouseleave={handleMouseUp}
+    on:wheel={handleWheel}
+    on:dragover={handleDragOver}
+    on:dragleave={handleDragLeave}
+    on:drop={handleDrop}
+    {width}
+    {height}
+  ></canvas>
+</div>
+
+<style>
+  .timeline-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1a1a1a;
+  }
+
+  canvas {
+    display: block;
+    cursor: default;
+  }
+</style>
