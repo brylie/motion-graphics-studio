@@ -115,7 +115,7 @@
     user-select: none;
     display: flex;
     align-items: center;
-    padding: 0 12px;
+    padding: 0 8px;
     transition: border-color 0.15s ease;
     min-width: 20px;
     overflow: hidden;
@@ -140,9 +140,9 @@
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    gap: 8px;
+    gap: 6px;
     color: white;
-    font-size: 12px;
+    font-size: 11px;
     pointer-events: none;
   }
 
@@ -156,7 +156,7 @@
   .clip-duration {
     color: #a0aec0;
     white-space: nowrap;
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .resize-handle {

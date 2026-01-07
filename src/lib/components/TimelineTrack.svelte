@@ -32,8 +32,8 @@
     };
   }>();
 
-  const TRACK_HEIGHT = 60;
-  const AUTOMATION_LANE_HEIGHT = 40;
+  const TRACK_HEIGHT = 36;
+  const AUTOMATION_LANE_HEIGHT = 50;
 
   // Get all unique automation parameter names across all clips - make it reactive
   $: allAutomationParams = (() => {
@@ -117,31 +117,31 @@
   style="min-height: {trackHeight}px;"
   data-track-id={track.id}
 >
-  <div class="track-header">
-    <div class="track-name">{track.name}</div>
-    <div class="track-controls">
-      <button
-        class="control-btn"
-        class:active={track.muted}
-        on:click={handleToggleMute}
-        aria-label={track.muted ? "Unmute track" : "Mute track"}
-        title={track.muted ? "Unmute" : "Mute"}
-      >
-        M
-      </button>
-      <button
-        class="control-btn"
-        class:active={track.solo}
-        on:click={handleToggleSolo}
-        aria-label={track.solo ? "Unsolo track" : "Solo track"}
-        title={track.solo ? "Unsolo" : "Solo"}
-      >
-        S
-      </button>
-    </div>
-  </div>
-
   <div class="track-content">
+    <!-- Sticky track label on the left -->
+    <div class="track-label">
+      <div class="track-name">{track.name}</div>
+      <div class="track-controls">
+        <button
+          class="control-btn"
+          class:active={track.muted}
+          on:click={handleToggleMute}
+          aria-label={track.muted ? "Unmute track" : "Mute track"}
+          title={track.muted ? "Unmute" : "Mute"}
+        >
+          M
+        </button>
+        <button
+          class="control-btn"
+          class:active={track.solo}
+          on:click={handleToggleSolo}
+          aria-label={track.solo ? "Unsolo track" : "Solo track"}
+          title={track.solo ? "Unsolo" : "Solo"}
+        >
+          S
+        </button>
+      </div>
+    </div>
     <div class="clips-container" style="height: {TRACK_HEIGHT}px;">
       {#each track.clips as clip (clip.id)}
         <TimelineClip
@@ -207,41 +207,46 @@
 
 <style>
   .timeline-track {
-    display: flex;
-    flex-direction: column;
+    position: relative;
     border-bottom: 1px solid #374151;
     background: #111827;
   }
 
-  .track-header {
+  .track-label {
+    position: sticky;
+    left: 0;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 8px;
     background: #1f2937;
-    border-bottom: 1px solid #374151;
-    min-height: 36px;
+    border-right: 1px solid #374151;
+    z-index: 10;
+    width: 80px;
+    flex-shrink: 0;
+    align-self: flex-start;
   }
 
   .track-name {
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 600;
     color: #f3f4f6;
+    line-height: 1.2;
   }
 
   .track-controls {
     display: flex;
-    gap: 4px;
+    gap: 2px;
   }
 
   .control-btn {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     border: 1px solid #4b5563;
     background: #374151;
     color: #9ca3af;
-    border-radius: 3px;
-    font-size: 11px;
+    border-radius: 2px;
+    font-size: 9px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -260,30 +265,34 @@
 
   .track-content {
     display: flex;
-    flex-direction: column;
-    flex: 1;
+    flex-direction: row;
     position: relative;
+    min-height: 100%;
   }
 
   .clips-container {
-    position: relative;
-    width: 100%;
+    position: absolute;
+    left: 80px;
+    right: 0;
+    top: 0;
+    width: calc(100% - 80px);
   }
 
   .automation-lanes {
-    position: relative;
-    width: 100%;
+    position: absolute;
+    left: 80px;
+    right: 0;
+    top: 36px;
+    width: calc(100% - 80px);
     display: flex;
     flex-direction: column;
     gap: 0;
-    background: rgba(255, 0, 0, 0.1); /* Debug background */
   }
 
   .automation-lane-row {
     position: relative;
     width: 100%;
     pointer-events: none;
-    background: rgba(0, 255, 0, 0.1); /* Debug background */
   }
 
   .automation-lane-wrapper {
@@ -291,6 +300,5 @@
     top: 0;
     pointer-events: auto;
     height: 100%;
-    background: rgba(0, 0, 255, 0.1); /* Debug background */
   }
 </style>
