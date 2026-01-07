@@ -26,6 +26,7 @@
   // Interaction state
   let isDragging = false;
   let isResizing = false;
+  let isScrubbing = false;
   let resizeHandle: "left" | "right" | null = null;
   let dragStartX = 0;
   let dragStartTime = 0;
@@ -407,10 +408,11 @@
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Check if clicking on playhead in ruler
+    // Check if clicking in ruler - start scrubbing
     if (y < RULER_HEIGHT) {
       const clickTime = xToTime(x);
       playbackActions.seek(clickTime);
+      isScrubbing = true;
       return;
     }
 
@@ -447,11 +449,21 @@
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // Handle scrubbing
+    if (isScrubbing) {
+      const scrubTime = Math.max(0, xToTime(x));
+      playbackActions.seek(scrubTime);
+      render();
+      return;
+    }
+
     // Update hovered clip
     hoveredClip = getClipAtPosition(x, y);
 
     // Update cursor
-    if (hoveredClip) {
+    if (y < RULER_HEIGHT) {
+      canvas.style.cursor = "pointer";
+    } else if (hoveredClip) {
       const handle = getResizeHandle(
         hoveredClip.clip,
         hoveredClip.trackIndex,
@@ -497,6 +509,7 @@
   function handleMouseUp() {
     isDragging = false;
     isResizing = false;
+    isScrubbing = false;
     resizeHandle = null;
     draggedClip = null;
     draggedTrackIndex = -1;
