@@ -596,38 +596,59 @@
     if (isDraggingKeyframe && selectedKeyframe) {
       const deltaX = x - dragStartX;
       const deltaTime = deltaX / $timelineView.pixelsPerSecond;
-      const newTime = snapTime(Math.max(0, dragStartTime + deltaTime));
+      const newRelativeTime = snapTime(Math.max(0, dragStartTime + deltaTime));
 
       // Find the clip
       let clip: Clip | null = null;
-      for (const track of $timeline.tracks) {
+      let trackIndex = -1;
+      for (let i = 0; i < $timeline.tracks.length; i++) {
+        const track = $timeline.tracks[i];
         const foundClip = track.clips.find(
           (c) => c.id === selectedKeyframe.clipId
         );
         if (foundClip) {
           clip = foundClip;
+          trackIndex = i;
           break;
         }
       }
 
-      if (!clip) return;
+      if (!clip || trackIndex === -1) return;
 
-      // Constrain to clip bounds
-      const constrainedTime = Math.max(
-        clip.startTime,
-        Math.min(clip.startTime + clip.duration, newTime)
+      // Calculate new value from vertical position (Y axis)
+      const clipY = trackIndexToY(trackIndex);
+      const automationY = clipY + TRACK_HEIGHT;
+      const relativeY = y - automationY;
+      // Normalize to 0-1 range, inverted (top = 1.0, bottom = 0.0)
+      const normalizedValue = Math.max(
+        0,
+        Math.min(1, 1 - relativeY / AUTOMATION_LANE_HEIGHT)
       );
 
-      // If time changed, update the keyframe
-      if (constrainedTime !== selectedKeyframe.time) {
-        const keyframes =
-          clip.parameters[selectedKeyframe.paramName]?.keyframes;
-        if (keyframes) {
-          const keyframe = keyframes.find(
-            (kf) => kf.time === selectedKeyframe.time
-          );
-          if (keyframe) {
-            // Remove old keyframe and add at new time
+      // Constrain relative time to clip duration
+      const relativeTime = Math.max(
+        0,
+        Math.min(clip.duration, newRelativeTime)
+      );
+
+      // Find the automation curve
+      const curve = clip.automation.find(
+        (c) => c.parameterName === selectedKeyframe.paramName
+      );
+
+      if (curve) {
+        const keyframe = curve.keyframes.find(
+          (kf) => Math.abs(kf.time - selectedKeyframe.time) < 0.01
+        );
+
+        if (keyframe) {
+          const timeChanged =
+            Math.abs(relativeTime - selectedKeyframe.time) > 0.01;
+          const valueChanged =
+            Math.abs(normalizedValue - keyframe.value) > 0.01;
+
+          if (timeChanged || valueChanged) {
+            // Remove old keyframe and add at new position
             timelineActions.removeKeyframe(
               clip.id,
               selectedKeyframe.paramName,
@@ -636,16 +657,16 @@
             timelineActions.addKeyframe(
               clip.id,
               selectedKeyframe.paramName,
-              constrainedTime,
-              keyframe.value
+              relativeTime,
+              normalizedValue
             );
             // Update selected keyframe reference in store
             viewActions.selectKeyframe(
               clip.id,
               selectedKeyframe.paramName,
-              constrainedTime
+              relativeTime
             );
-            dragStartTime = constrainedTime;
+            dragStartTime = relativeTime;
           }
         }
       }

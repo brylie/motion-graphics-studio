@@ -508,4 +508,97 @@ test.describe('Timeline Interactions', () => {
 		// and now clip starts at a lower time, keyframe relative time should increase
 		expect(finalState.firstKeyframeTime).toBeGreaterThan(setupState.firstKeyframeTime);
 	});
+
+	test('should allow dragging keyframes to change time and value', async ({ page }) => {
+		// Setup: Add a clip with a keyframe
+		const setup = await page.evaluate(() => {
+			const actions = (window as any).__timelineActions;
+			let state = (window as any).__timelineStore?.get?.();
+			let trackId = state?.tracks?.[0]?.id;
+			
+			// Add a clip at time 5, duration 10
+			actions.addClip(trackId, 'test-shader', 5, 10);
+			
+			state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.startTime === 5);
+			
+			// Add keyframe at relative time 2 (absolute time 7), value 0.5
+			if (clip) {
+				actions.addKeyframe(clip.id, 'testParam', 2, 0.5);
+				return { success: true, clipId: clip.id };
+			}
+			return { success: false };
+		});
+		
+		expect(setup.success).toBe(true);
+
+		// Get initial keyframe state
+		const initialState = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			const automation = clip?.automation;
+			const keyframe = automation?.[0]?.keyframes?.[0];
+			return {
+				time: keyframe?.time || 0,
+				value: keyframe?.value || 0,
+				clipStartTime: clip?.startTime || 0
+			};
+		});
+
+		expect(initialState.time).toBe(2);
+		expect(initialState.value).toBe(0.5);
+
+		// Calculate keyframe position on canvas
+		const canvas = page.locator('canvas.timeline');
+		const pixelsPerSecond = 50;
+		const RULER_HEIGHT = 30;
+		const TRACK_HEIGHT = 60;
+		const AUTOMATION_LANE_HEIGHT = 40;
+		
+		// Keyframe X position (absolute time 7 = clip start 5 + relative 2)
+		const keyframeAbsoluteTime = initialState.clipStartTime + initialState.time;
+		const keyframeX = keyframeAbsoluteTime * pixelsPerSecond;
+		
+		// Keyframe Y position (in automation lane, at 50% height since value is 0.5)
+		const trackY = RULER_HEIGHT + TRACK_HEIGHT;
+		const keyframeY = trackY + (AUTOMATION_LANE_HEIGHT * (1 - initialState.value)); // Inverted: top = 1.0
+		
+		// Drag keyframe to new position: +2 seconds right, value 0.8 (higher)
+		const newRelativeX = keyframeX + (2 * pixelsPerSecond);
+		const newRelativeY = trackY + (AUTOMATION_LANE_HEIGHT * (1 - 0.8));
+		
+		// Get canvas position to convert relative coordinates to absolute
+		const canvasBox = await canvas.boundingBox();
+		if (!canvasBox) throw new Error('Canvas not found');
+		
+		const absoluteStartX = canvasBox.x + keyframeX;
+		const absoluteStartY = canvasBox.y + keyframeY;
+		const absoluteEndX = canvasBox.x + newRelativeX;
+		const absoluteEndY = canvasBox.y + newRelativeY;
+		
+		await page.mouse.move(absoluteStartX, absoluteStartY);
+		await page.mouse.down();
+		await page.mouse.move(absoluteEndX, absoluteEndY, { steps: 10 });
+		await page.mouse.up();
+
+		// Wait for state to update
+		await page.waitForTimeout(100);
+
+		// Verify keyframe moved
+		const finalState = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			const automation = clip?.automation;
+			const keyframe = automation?.[0]?.keyframes?.[0];
+			return {
+				time: keyframe?.time || 0,
+				value: keyframe?.value || 0
+			};
+		});
+
+		// Time should have increased
+		expect(finalState.time).toBeGreaterThan(initialState.time);
+		// Value should have increased (closer to 1.0)
+		expect(finalState.value).toBeGreaterThan(initialState.value);
+	});
 });
