@@ -4,13 +4,61 @@
   import ShaderLibrary from "$lib/components/ShaderLibrary.svelte";
   import Preview from "$lib/components/Preview.svelte";
   import ParameterPanel from "$lib/components/ParameterPanel.svelte";
-  import { timelineActions } from "$lib/stores/timeline";
+  import { timelineActions, timelineView } from "$lib/stores/timeline";
+  import { playback, playbackActions } from "$lib/stores/playback";
   import { onMount } from "svelte";
 
   onMount(() => {
     // Add a few initial tracks
     timelineActions.addTrack();
     timelineActions.addTrack();
+
+    // Add keyboard event listener
+    function handleKeyDown(e: KeyboardEvent) {
+      // Check if in an input field
+      if (
+        e.target instanceof HTMLElement &&
+        (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
+      ) {
+        return;
+      }
+
+      // Spacebar - play/pause
+      if (e.code === "Space") {
+        e.preventDefault(); // Prevent page scroll
+        playbackActions.togglePlay();
+        return;
+      }
+
+      // Delete/Backspace - delete keyframe or clip
+      if (e.code === "Delete" || e.code === "Backspace") {
+        e.preventDefault();
+
+        const view = timelineView;
+        let currentView: any;
+        const unsubscribe = view.subscribe((v) => (currentView = v));
+        unsubscribe();
+
+        // Priority 1: Delete selected keyframe
+        if (currentView.selectedKeyframe) {
+          const { clipId, paramName, time } = currentView.selectedKeyframe;
+          timelineActions.removeKeyframe(clipId, paramName, time);
+          return;
+        }
+
+        // Priority 2: Delete selected clip
+        if (currentView.selectedClipId) {
+          timelineActions.removeClip(currentView.selectedClipId);
+          return;
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   });
 </script>
 

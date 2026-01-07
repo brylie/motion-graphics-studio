@@ -50,6 +50,7 @@ export interface TimelineViewState {
 	scrollX: number; // Horizontal scroll position in pixels
 	selectedClipId: string | null;
 	selectedTrackId: string | null;
+	selectedKeyframe: { clipId: string; paramName: string; time: number } | null;
 }
 
 export interface DragState {

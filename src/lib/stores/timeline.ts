@@ -30,7 +30,8 @@ export const timelineView = writable<TimelineViewState>({
 	pixelsPerSecond: 50, // 50 pixels per second default zoom
 	scrollX: 0,
 	selectedClipId: null,
-	selectedTrackId: null
+	selectedTrackId: null,
+	selectedKeyframe: null
 });
 
 // Derived store for selected clip
@@ -390,6 +391,18 @@ export const viewActions = {
 		timelineView.update(v => ({
 			...v,
 			selectedTrackId: trackId
+		}));
+	},
+
+	/**
+	 * Select keyframe
+	 */
+	selectKeyframe(clipId: string | null, paramName: string | null, time: number | null) {
+		timelineView.update(v => ({
+			...v,
+			selectedKeyframe: (clipId && paramName !== null && time !== null)
+				? { clipId, paramName, time }
+				: null
 		}));
 	}
 };

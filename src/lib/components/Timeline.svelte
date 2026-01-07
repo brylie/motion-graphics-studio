@@ -27,6 +27,7 @@
   let isDragging = false;
   let isResizing = false;
   let isScrubbing = false;
+  let isDraggingKeyframe = false;
   let resizeHandle: "left" | "right" | null = null;
   let dragStartX = 0;
   let dragStartTime = 0;
@@ -35,12 +36,10 @@
   let hoveredClip: { clip: Clip; trackIndex: number } | null = null;
   let isDraggingOver = false;
   let dropTargetTrack = -1;
-  let draggedKeyframe: {
-    clipId: string;
-    paramName: string;
-    time: number;
-  } | null = null;
   let hoveredParameter: { clipId: string; paramName: string } | null = null;
+
+  // Use selectedKeyframe from store
+  $: selectedKeyframe = $timelineView.selectedKeyframe;
 
   // Helper functions
   function timeToX(time: number): number {
@@ -125,6 +124,58 @@
 
   function snapTime(time: number, gridSize: number = 0.1): number {
     return Math.round(time / gridSize) * gridSize;
+  }
+
+  function getKeyframeAtPosition(
+    x: number,
+    y: number
+  ): { clip: Clip; paramName: string; keyframeTime: number } | null {
+    const time = xToTime(x);
+
+    for (
+      let trackIndex = 0;
+      trackIndex < $timeline.tracks.length;
+      trackIndex++
+    ) {
+      const track = $timeline.tracks[trackIndex];
+      const trackY = trackIndexToY(trackIndex);
+
+      for (const clip of track.clips) {
+        const clipX = timeToX(clip.startTime);
+        const clipWidth = clip.duration * $timelineView.pixelsPerSecond;
+
+        // Skip if not in this clip's time range
+        if (x < clipX || x > clipX + clipWidth) continue;
+
+        let laneY = trackY + TRACK_HEIGHT;
+
+        // Check each automation lane
+        for (const curve of clip.automation) {
+          if (curve.keyframes.length === 0) continue;
+
+          // Check if y is in this lane
+          if (y >= laneY && y < laneY + AUTOMATION_LANE_HEIGHT) {
+            // Check each keyframe
+            for (const keyframe of curve.keyframes) {
+              const kfX = clipX + keyframe.time * $timelineView.pixelsPerSecond;
+
+              // Hit test with some tolerance
+              if (Math.abs(x - kfX) < KEYFRAME_SIZE) {
+                return {
+                  clip,
+                  paramName: curve.parameterName,
+                  keyframeTime: keyframe.time,
+                };
+              }
+            }
+          }
+
+          laneY += AUTOMATION_LANE_HEIGHT;
+        }
+      }
+    }
+
+    return null;
   }
 
   // Drawing functions
@@ -344,18 +395,25 @@
         (keyframe.value - minValue) / (maxValue - minValue);
       const kfY = laneY + laneHeight - normalizedValue * laneHeight + 2;
 
+      // Check if this keyframe is selected
+      const isSelected =
+        selectedKeyframe &&
+        selectedKeyframe.clipId === clip.id &&
+        selectedKeyframe.paramName === paramName &&
+        Math.abs(selectedKeyframe.time - keyframe.time) < 0.01;
+
       ctx!.save();
       ctx!.translate(kfX, kfY);
       ctx!.rotate(Math.PI / 4);
-      ctx!.fillStyle = "#4a9eff";
+      ctx!.fillStyle = isSelected ? "#ff9933" : "#4a9eff";
       ctx!.fillRect(
         -KEYFRAME_SIZE / 2,
         -KEYFRAME_SIZE / 2,
         KEYFRAME_SIZE,
         KEYFRAME_SIZE
       );
-      ctx!.strokeStyle = "#fff";
-      ctx!.lineWidth = 1;
+      ctx!.strokeStyle = isSelected ? "#ffcc00" : "#fff";
+      ctx!.lineWidth = isSelected ? 2 : 1;
       ctx!.strokeRect(
         -KEYFRAME_SIZE / 2,
         -KEYFRAME_SIZE / 2,
@@ -416,6 +474,25 @@
       return;
     }
 
+    // Check for keyframe interaction first
+    const keyframeAtPos = getKeyframeAtPosition(x, y);
+    if (keyframeAtPos) {
+      viewActions.selectKeyframe(
+        keyframeAtPos.clip.id,
+        keyframeAtPos.paramName,
+        keyframeAtPos.keyframeTime
+      );
+      isDraggingKeyframe = true;
+      dragStartX = x;
+      dragStartTime = keyframeAtPos.keyframeTime;
+      viewActions.selectClip(keyframeAtPos.clip.id);
+      redraw();
+      return;
+    }
+
+    // Clear keyframe selection if clicking elsewhere
+    viewActions.selectKeyframe(null, null, null);
+
     // Check for clip interaction
     const clipAtPos = getClipAtPosition(x, y);
     if (clipAtPos) {
@@ -454,6 +531,67 @@
       const scrubTime = Math.max(0, xToTime(x));
       playbackActions.seek(scrubTime);
       render();
+      return;
+    }
+
+    // Handle keyframe dragging
+    if (isDraggingKeyframe && selectedKeyframe) {
+      const deltaX = x - dragStartX;
+      const deltaTime = deltaX / $timelineView.pixelsPerSecond;
+      const newTime = snapTime(Math.max(0, dragStartTime + deltaTime));
+
+      // Find the clip
+      let clip: Clip | null = null;
+      for (const track of $timeline.tracks) {
+        const foundClip = track.clips.find(
+          (c) => c.id === selectedKeyframe.clipId
+        );
+        if (foundClip) {
+          clip = foundClip;
+          break;
+        }
+      }
+
+      if (!clip) return;
+
+      // Constrain to clip bounds
+      const constrainedTime = Math.max(
+        clip.startTime,
+        Math.min(clip.startTime + clip.duration, newTime)
+      );
+
+      // If time changed, update the keyframe
+      if (constrainedTime !== selectedKeyframe.time) {
+        const keyframes =
+          clip.parameters[selectedKeyframe.paramName]?.keyframes;
+        if (keyframes) {
+          const keyframe = keyframes.find(
+            (kf) => kf.time === selectedKeyframe.time
+          );
+          if (keyframe) {
+            // Remove old keyframe and add at new time
+            timelineActions.removeKeyframe(
+              clip.id,
+              selectedKeyframe.paramName,
+              selectedKeyframe.time
+            );
+            timelineActions.addKeyframe(
+              clip.id,
+              selectedKeyframe.paramName,
+              constrainedTime,
+              keyframe.value
+            );
+            // Update selected keyframe reference in store
+            viewActions.selectKeyframe(
+              clip.id,
+              selectedKeyframe.paramName,
+              constrainedTime
+            );
+            dragStartTime = constrainedTime;
+          }
+        }
+      }
+      redraw();
       return;
     }
 
@@ -510,6 +648,7 @@
     isDragging = false;
     isResizing = false;
     isScrubbing = false;
+    isDraggingKeyframe = false;
     resizeHandle = null;
     draggedClip = null;
     draggedTrackIndex = -1;
