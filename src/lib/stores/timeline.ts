@@ -29,7 +29,6 @@ export const timeline = historyStore<Timeline>(createInitialTimeline());
 // View state store
 export const timelineView = writable<TimelineViewState>({
 	pixelsPerSecond: 50, // 50 pixels per second default zoom
-	scrollX: 0,
 	selectedClipId: null,
 	selectedTrackId: null,
 	selectedKeyframe: null
@@ -389,16 +388,6 @@ export const viewActions = {
 		timelineView.update(v => ({
 			...v,
 			pixelsPerSecond: Math.max(10, Math.min(200, pixelsPerSecond))
-		}));
-	},
-
-	/**
-	 * Set scroll position
-	 */
-	setScroll(scrollX: number) {
-		timelineView.update(v => ({
-			...v,
-			scrollX: Math.max(0, scrollX)
 		}));
 	},
 

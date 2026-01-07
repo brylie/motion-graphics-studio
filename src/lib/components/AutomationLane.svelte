@@ -1,11 +1,6 @@
 <script lang="ts">
   import type { Keyframe } from "$lib/timeline/types";
   import { moveKeyframe, findKeyframeIndex } from "$lib/utils/keyframes";
-  import {
-    renderAutomationLane as renderAutomationLaneUtil,
-    hitTestKeyframe,
-    yToValue as yToValueUtil,
-  } from "$lib/utils/automationRendering";
 
   export let parameterName: string;
   export let keyframes: Keyframe[] = [];
@@ -15,8 +10,6 @@
   export let keyframeSize: number = 8;
   export let selectedKeyframeTime: number | null = null;
   export let readonly: boolean = false;
-  export let clipXOffset: number = 0; // X offset for positioning within timeline
-  export let canvasWidth: number | undefined = undefined; // Optional fixed width
 
   // Callbacks instead of events
   export let onkeyframeselect:
@@ -25,100 +18,86 @@
   export let onkeyframemove:
     | ((detail: { oldTime: number; newTime: number; newValue: number }) => void)
     | undefined = undefined;
-  export let onkeyframeadd:
-    | ((detail: { time: number; value: number }) => void)
-    | undefined = undefined;
-  export let onkeyframeremove:
-    | ((detail: { time: number }) => void)
-    | undefined = undefined;
 
-  let canvas: HTMLCanvasElement;
-  let ctx: CanvasRenderingContext2D | null;
-  $: width = canvasWidth ?? clipDuration * pixelsPerSecond;
+  $: width = clipDuration * pixelsPerSecond;
   $: height = laneHeight;
 
   let isDragging = false;
-  let dragStartX = 0;
-  let dragStartY = 0;
-  let dragStartTime = 0;
-  let dragStartValue = 0;
+  let draggedKeyframeTime: number | null = null;
+  let svgElement: SVGSVGElement;
 
-  $: {
-    if (canvas) {
-      ctx = canvas.getContext("2d");
-      render();
-    }
+  // Convert keyframe time to X coordinate
+  function timeToX(time: number): number {
+    return time * pixelsPerSecond;
   }
 
-  $: if (keyframes || selectedKeyframeTime !== null) {
-    render();
+  // Convert keyframe value (0-1) to Y coordinate (inverted, 0 at top)
+  function valueToY(value: number): number {
+    const padding = 4;
+    return padding + (1 - value) * (height - padding * 2);
   }
 
-  function render() {
-    if (!ctx) return;
+  // Convert X coordinate to time
+  function xToTime(x: number): number {
+    return x / pixelsPerSecond;
+  }
 
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
+  // Convert Y coordinate to value
+  function yToValue(y: number): number {
+    const padding = 4;
+    const normalizedY = (y - padding) / (height - padding * 2);
+    return Math.max(0, Math.min(1, 1 - normalizedY));
+  }
 
-    // Use shared rendering utility for consistent appearance
-    renderAutomationLaneUtil({
-      ctx,
-      keyframes,
-      x: 0,
-      y: 0,
-      width,
-      height,
-      pixelsPerSecond,
-      minValue: 0,
-      maxValue: 1,
-      selectedKeyframeTime,
-      keyframeSize,
-      parameterName,
-      keyframeShape: "circle", // AutomationLane uses circles, Timeline uses diamonds
+  // Generate SVG path for automation curve
+  $: pathData = (() => {
+    if (keyframes.length === 0) return "";
+
+    const sortedKeyframes = [...keyframes].sort((a, b) => a.time - b.time);
+    let path = "";
+
+    sortedKeyframes.forEach((kf, i) => {
+      const x = timeToX(kf.time);
+      const y = valueToY(kf.value);
+      path += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
     });
-  }
 
-  function handleMouseDown(e: MouseEvent) {
+    return path;
+  })();
+
+  function handleSvgMouseDown(e: MouseEvent) {
     if (readonly) return;
 
-    const rect = canvas.getBoundingClientRect();
+    const rect = svgElement.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
     // Check if clicking on a keyframe
-    const clickedKeyframe = getKeyframeAtPosition(x, y);
+    const clickedKeyframe = findKeyframeAtPoint(x, y);
 
-    if (clickedKeyframe !== null) {
+    if (clickedKeyframe) {
       onkeyframeselect?.({ time: clickedKeyframe.time });
       isDragging = true;
-      dragStartX = x;
-      dragStartY = y;
-      dragStartTime = clickedKeyframe.time;
-      dragStartValue = clickedKeyframe.value;
+      draggedKeyframeTime = clickedKeyframe.time;
     } else {
-      // Clicking empty space - could add keyframe in future
       onkeyframeselect?.({ time: -1 }); // Deselect
     }
   }
 
-  function handleMouseMove(e: MouseEvent) {
-    if (!isDragging || selectedKeyframeTime === null) return;
+  function handleSvgMouseMove(e: MouseEvent) {
+    if (!isDragging || draggedKeyframeTime === null) return;
 
-    const rect = canvas.getBoundingClientRect();
+    const rect = svgElement.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const deltaX = x - dragStartX;
-    const deltaTime = deltaX / pixelsPerSecond;
-    const desiredTime = dragStartTime + deltaTime;
-
-    // Calculate value from Y position using shared utility
-    const desiredValue = yToValueUtil(y, 0, height, 0, 1);
+    const desiredTime = xToTime(x);
+    const desiredValue = yToValue(y);
 
     try {
       const { time: clampedTime, value: clampedValue } = moveKeyframe(
         keyframes,
-        selectedKeyframeTime,
+        draggedKeyframeTime,
         desiredTime,
         desiredValue,
         {
@@ -130,54 +109,44 @@
         }
       );
 
-      const timeChanged = Math.abs(clampedTime - selectedKeyframeTime) > 0.01;
-      const kfIndex = findKeyframeIndex(keyframes, selectedKeyframeTime);
+      const timeChanged = Math.abs(clampedTime - draggedKeyframeTime) > 0.01;
+      const kfIndex = findKeyframeIndex(keyframes, draggedKeyframeTime);
       const valueChanged =
         kfIndex !== -1 &&
         Math.abs(clampedValue - keyframes[kfIndex].value) > 0.01;
 
       if (timeChanged || valueChanged) {
         onkeyframemove?.({
-          oldTime: selectedKeyframeTime,
+          oldTime: draggedKeyframeTime,
           newTime: clampedTime,
           newValue: clampedValue,
         });
+        draggedKeyframeTime = clampedTime;
       }
     } catch (error) {
       console.warn("Error moving keyframe:", error);
     }
   }
 
-  function handleMouseUp() {
+  function handleSvgMouseUp() {
     isDragging = false;
+    draggedKeyframeTime = null;
   }
 
-  function getKeyframeAtPosition(x: number, y: number): Keyframe | null {
-    // Use shared hit-test utility
-    return hitTestKeyframe(
-      keyframes,
-      x,
-      y,
-      0,
-      0,
-      height,
-      pixelsPerSecond,
-      keyframeSize,
-      0,
-      1
-    );
-  }
+  function findKeyframeAtPoint(x: number, y: number): Keyframe | null {
+    const hitRadius = keyframeSize;
 
-  // Export hit-test function for Timeline to use
-  export function hitTestKeyframeGlobal(
-    globalX: number,
-    globalY: number,
-    laneY: number
-  ): Keyframe | null {
-    // Convert global coordinates to local lane coordinates
-    const localX = globalX - clipXOffset;
-    const localY = globalY - laneY;
-    return getKeyframeAtPosition(localX, localY);
+    for (const kf of keyframes) {
+      const kfX = timeToX(kf.time);
+      const kfY = valueToY(kf.value);
+      const distance = Math.sqrt((x - kfX) ** 2 + (y - kfY) ** 2);
+
+      if (distance <= hitRadius) {
+        return kf;
+      }
+    }
+
+    return null;
   }
 
   // Expose for testing
@@ -186,21 +155,52 @@
   }
 </script>
 
-/** * AutomationLane Component * * Handles interaction with a single automation
-curve (keyframes for one parameter). * This component is isolated and testable
-to ensure consistent behavior across * multiple automation lanes. */
 <div class="automation-lane">
   <div class="parameter-name">{parameterName}</div>
-  <canvas
-    bind:this={canvas}
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+  <svg
+    bind:this={svgElement}
     {width}
     {height}
-    on:mousedown={handleMouseDown}
-    on:mousemove={handleMouseMove}
-    on:mouseup={handleMouseUp}
-    on:mouseleave={handleMouseUp}
-    style="display: block; cursor: {isDragging ? 'grabbing' : 'default'};"
-  ></canvas>
+    class="automation-svg"
+    class:dragging={isDragging}
+    class:readonly
+    on:mousedown={handleSvgMouseDown}
+    on:mousemove={handleSvgMouseMove}
+    on:mouseup={handleSvgMouseUp}
+    on:mouseleave={handleSvgMouseUp}
+    role="application"
+    aria-label="Automation curve for {parameterName}"
+  >
+    <!-- Background -->
+    <rect {width} {height} class="background" />
+
+    <!-- Grid lines (optional) -->
+    <line x1="0" y1={height / 2} x2={width} y2={height / 2} class="grid-line" />
+
+    <!-- Automation curve path -->
+    {#if pathData}
+      <path
+        d={pathData}
+        class="automation-path"
+        fill="none"
+        stroke="#60a5fa"
+        stroke-width="2"
+      />
+    {/if}
+
+    <!-- Keyframes -->
+    {#each keyframes as kf (kf.time)}
+      <circle
+        cx={timeToX(kf.time)}
+        cy={valueToY(kf.value)}
+        r={keyframeSize}
+        class="keyframe"
+        class:selected={selectedKeyframeTime === kf.time}
+        class:readonly
+      />
+    {/each}
+  </svg>
 </div>
 
 <style>
@@ -212,11 +212,71 @@ to ensure consistent behavior across * multiple automation lanes. */
 
   .parameter-name {
     font-size: 12px;
-    color: #666;
+    color: #9ca3af;
     padding: 2px 4px;
+    font-weight: 500;
   }
 
-  canvas {
-    image-rendering: pixelated;
+  .automation-svg {
+    display: block;
+    cursor: default;
+  }
+
+  .automation-svg.dragging {
+    cursor: grabbing;
+  }
+
+  .automation-svg:not(.readonly) {
+    cursor: crosshair;
+  }
+
+  .background {
+    fill: #1f2937;
+    stroke: #374151;
+    stroke-width: 1;
+  }
+
+  .grid-line {
+    stroke: #374151;
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+    opacity: 0.5;
+  }
+
+  .automation-path {
+    stroke: #60a5fa;
+    stroke-width: 2;
+    fill: none;
+  }
+
+  .keyframe {
+    fill: #60a5fa;
+    stroke: #1e3a8a;
+    stroke-width: 2;
+    cursor: grab;
+    transition:
+      fill 0.15s ease,
+      r 0.15s ease;
+  }
+
+  .keyframe:hover {
+    fill: #93c5fd;
+    r: 10;
+  }
+
+  .keyframe.selected {
+    fill: #3b82f6;
+    stroke: #1e40af;
+    stroke-width: 3;
+    r: 10;
+  }
+
+  .keyframe.readonly {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .keyframe:active {
+    cursor: grabbing;
   }
 </style>

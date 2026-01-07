@@ -16,14 +16,14 @@ describe('AutomationLane', () => {
 	};
 
 	describe('rendering', () => {
-		it('should render canvas with correct dimensions', () => {
+		it('should render SVG with correct dimensions', () => {
 			const { container } = render(AutomationLane, { props: defaultProps });
-			const canvas = container.querySelector('canvas');
+			const svg = container.querySelector('svg');
 			
-			expect(canvas).toBeTruthy();
+			expect(svg).toBeTruthy();
 			// Width is now dynamic: clipDuration (10s) * pixelsPerSecond (50) = 500px
-			expect(canvas?.width).toBe(500);
-			expect(canvas?.height).toBe(40);
+			expect(svg?.getAttribute('width')).toBe('500');
+			expect(svg?.getAttribute('height')).toBe('40');
 		});
 
 		it('should display parameter name', () => {
@@ -44,8 +44,9 @@ describe('AutomationLane', () => {
 				props: { ...defaultProps, keyframes }
 			});
 			
-			// Just verify it renders without error
-			expect(container.querySelector('canvas')).toBeTruthy();
+			// Verify SVG circles are rendered for keyframes
+			const circles = container.querySelectorAll('circle');
+			expect(circles.length).toBe(keyframes.length);
 		});
 	});
 

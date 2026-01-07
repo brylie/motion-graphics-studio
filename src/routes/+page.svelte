@@ -172,6 +172,6 @@
 
   .timeline-area {
     height: 50%;
-    overflow: hidden;
+    overflow: auto;
   }
 </style>
