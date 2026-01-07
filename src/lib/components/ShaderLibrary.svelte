@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { shaderLibrary, shaderLibraryActions } from "$lib/stores/shaders";
   import { timeline, timelineActions } from "$lib/stores/timeline";
+  import { dragDropStore } from "$lib/stores/dragDrop";
   import type { ParsedISF } from "$lib/isf/types";
 
   let searchQuery = "";
@@ -40,6 +41,10 @@
   function handleDragStart(e: DragEvent, shader: ParsedISF) {
     if (!e.dataTransfer) return;
     e.dataTransfer.effectAllowed = "copy";
+
+    // Set drag state in store
+    dragDropStore.startDrag("shader", { shaderId: shader.filename }, 5.0);
+
     // Use text/plain for better browser compatibility
     const data = JSON.stringify({
       type: "shader",
@@ -47,6 +52,11 @@
     });
     e.dataTransfer.setData("text/plain", data);
     e.dataTransfer.setData("application/json", data);
+  }
+
+  function handleDragEnd() {
+    // Clean up drag state when drag ends (whether dropped or cancelled)
+    dragDropStore.endDrag();
   }
 
   onMount(() => {
@@ -88,6 +98,7 @@
           class="shader-card"
           draggable="true"
           on:dragstart={(e) => handleDragStart(e, shader)}
+          on:dragend={handleDragEnd}
           on:click={() => handleShaderClick(shader)}
           role="button"
           tabindex="0"

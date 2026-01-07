@@ -7,6 +7,7 @@
     viewActions,
   } from "$lib/stores/timeline";
   import { playback, playbackActions } from "$lib/stores/playback";
+  import { dragDropStore } from "$lib/stores/dragDrop";
   import TimelineRuler from "./TimelineRuler.svelte";
   import TimelineTrack from "./TimelineTrack.svelte";
   import type { Clip } from "$lib/timeline/types";
@@ -25,10 +26,18 @@
 
   const LABEL_WIDTH = 80; // Must match TimelineTrack and TimelineRuler label column width
   $: totalWidth = $timeline.duration * $timelineView.pixelsPerSecond;
-  $: playheadPosition = LABEL_WIDTH + ($playback.currentTime * $timelineView.pixelsPerSecond);
+  $: playheadPosition =
+    LABEL_WIDTH + $playback.currentTime * $timelineView.pixelsPerSecond;
 
   function snapTime(time: number, gridSize: number = 0.1): number {
     return Math.round(time / gridSize) * gridSize;
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    // Cancel drag operation on ESC key
+    if (e.key === "Escape" && $dragDropStore.isDragging) {
+      dragDropStore.endDrag();
+    }
   }
 
   function handleWheel(e: WheelEvent) {
@@ -253,15 +262,36 @@
         e.dataTransfer.dropEffect = "copy";
       }
     }
+
+    // Update preview position
+    const trackId = getTrackAtPosition(e.clientY);
+    if (trackId) {
+      const rect = timelineContainer.getBoundingClientRect();
+      const scrollLeft = timelineContainer?.scrollLeft || 0;
+      const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
+      const dropTime = snapTime(
+        Math.max(0, relativeX / $timelineView.pixelsPerSecond)
+      );
+      dragDropStore.updatePreview(trackId, dropTime, true);
+    }
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    // Only hide preview if we're leaving the timeline container
+    const currentTarget = e.currentTarget as HTMLElement;
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!currentTarget.contains(relatedTarget)) {
+      dragDropStore.updatePreview(null, 0, false);
+    }
   }
 
   function getTrackAtPosition(y: number): string | null {
     // Find which track element the mouse is over
-    const trackElements = timelineContainer.querySelectorAll('.timeline-track');
+    const trackElements = timelineContainer.querySelectorAll(".timeline-track");
     for (const trackEl of trackElements) {
       const rect = trackEl.getBoundingClientRect();
       if (y >= rect.top && y <= rect.bottom) {
-        return trackEl.getAttribute('data-track-id');
+        return trackEl.getAttribute("data-track-id");
       }
     }
     return null;
@@ -284,11 +314,46 @@
       }
 
       const data = JSON.parse(dataStr);
-      console.log("Drop data:", data);
+      console.log(
+        "Drop data:",
+        data,
+        "clientY:",
+        e.clientY,
+        "target:",
+        e.target
+      );
 
       if (data.type === "shader" && data.shaderId) {
         // Detect which track the drop occurred on
-        const trackId = getTrackAtPosition(e.clientY);
+        // Try to find track from the actual drop target first
+        let trackId: string | null = null;
+        let targetElement = e.target as HTMLElement;
+
+        // Traverse up to find the track element
+        while (targetElement && !trackId) {
+          if (
+            targetElement.hasAttribute &&
+            targetElement.hasAttribute("data-track-id")
+          ) {
+            trackId = targetElement.getAttribute("data-track-id");
+            break;
+          }
+          if (targetElement.closest) {
+            const trackEl = targetElement.closest("[data-track-id]");
+            if (trackEl) {
+              trackId = trackEl.getAttribute("data-track-id");
+              break;
+            }
+          }
+          targetElement = targetElement.parentElement as HTMLElement;
+        }
+
+        // Fallback to position-based detection
+        if (!trackId) {
+          trackId = getTrackAtPosition(e.clientY);
+        }
+
+        console.log("Detected track ID:", trackId);
 
         if (!trackId) {
           console.warn("No track found at drop position");
@@ -316,7 +381,7 @@
         let sourceClip = null;
         let sourceTrackId = null;
         for (const track of $timeline.tracks) {
-          const clip = track.clips.find(c => c.id === data.clipId);
+          const clip = track.clips.find((c) => c.id === data.clipId);
           if (clip) {
             sourceClip = clip;
             sourceTrackId = track.id;
@@ -355,22 +420,53 @@
       }
     } catch (error) {
       console.error("Failed to handle drop:", error);
+    } finally {
+      // Always clear the drag state when drop completes
+      dragDropStore.endDrag();
     }
   }
+
+  // Calculate preview rectangle position and dimensions
+  $: previewStyle = (() => {
+    if (
+      !$dragDropStore.previewPosition.visible ||
+      !$dragDropStore.previewPosition.trackId
+    ) {
+      return "display: none;";
+    }
+
+    const trackIndex = $timeline.tracks.findIndex(
+      (t) => t.id === $dragDropStore.previewPosition.trackId
+    );
+
+    if (trackIndex === -1) return "display: none;";
+
+    const left =
+      LABEL_WIDTH +
+      $dragDropStore.previewPosition.time * $timelineView.pixelsPerSecond;
+    const width = $dragDropStore.duration * $timelineView.pixelsPerSecond;
+    const top = trackIndex * 28; // TRACK_HEIGHT from TimelineTrack
+
+    return `left: ${left}px; top: ${top}px; width: ${width}px; height: 28px; display: block;`;
+  })();
 
   onMount(() => {
     // Timeline is now ready
   });
 </script>
 
+<!-- svelte-ignore a11y-no-static-element-interactions -->
 <div
   class="timeline-container"
   bind:this={timelineContainer}
   on:wheel={handleWheel}
   on:dragover={handleDragOver}
+  on:dragleave={handleDragLeave}
   on:drop={handleDrop}
+  on:keydown={handleKeyDown}
   role="application"
   aria-label="Timeline"
+  tabindex="0"
 >
   <div class="timeline-content" style="width: {totalWidth}px;">
     <TimelineRuler
@@ -390,6 +486,11 @@
       <div class="mode-indicator proportional">PROPORTIONAL MODE (Alt)</div>
     {:else if isResizing}
       <div class="mode-indicator absolute">ABSOLUTE MODE</div>
+    {/if}
+
+    <!-- Clip Preview Rectangle -->
+    {#if $dragDropStore.previewPosition.visible}
+      <div class="clip-preview" style={previewStyle}></div>
     {/if}
 
     <!-- Tracks -->
@@ -473,5 +574,17 @@
 
   .mode-indicator.absolute {
     background: rgba(59, 130, 246, 0.95);
+  }
+
+  .clip-preview {
+    position: absolute;
+    background: rgba(59, 130, 246, 0.3);
+    border: 2px dashed rgba(59, 130, 246, 0.8);
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 50;
+    transition:
+      left 0.05s ease,
+      top 0.05s ease;
   }
 </style>

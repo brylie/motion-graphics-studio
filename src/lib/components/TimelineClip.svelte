@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Clip } from "$lib/timeline/types";
   import { timelineView, viewActions } from "$lib/stores/timeline";
+  import { dragDropStore } from "$lib/stores/dragDrop";
   import { createEventDispatcher } from "svelte";
 
   export let clip: Clip;
@@ -32,12 +33,18 @@
     // Select the clip when starting to drag
     dispatch("select", { clipId: clip.id });
 
+    // Set drag state in store
+    dragDropStore.startDrag("clip", { clipId: clip.id }, clip.duration);
+
     // Set drag data
     e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("application/json", JSON.stringify({
-      type: "clip",
-      clipId: clip.id
-    }));
+    e.dataTransfer.setData(
+      "application/json",
+      JSON.stringify({
+        type: "clip",
+        clipId: clip.id,
+      })
+    );
 
     // Create a compact drag image matching clip height
     if (clipElement) {
@@ -47,10 +54,19 @@
       dragImage.style.top = "-1000px";
       dragImage.style.height = clipElement.offsetHeight + "px";
       document.body.appendChild(dragImage);
-      e.dataTransfer.setDragImage(dragImage, e.offsetX, clipElement.offsetHeight / 2);
+      e.dataTransfer.setDragImage(
+        dragImage,
+        e.offsetX,
+        clipElement.offsetHeight / 2
+      );
       // Clean up after drag starts
       setTimeout(() => document.body.removeChild(dragImage), 0);
     }
+  }
+
+  function handleDragEnd() {
+    // Clean up drag state when drag ends (whether dropped or cancelled)
+    dragDropStore.endDrag();
   }
 
   function handleLeftResizeMouseDown(e: MouseEvent) {
@@ -97,6 +113,7 @@
   draggable={isDraggable}
   on:click={handleClipClick}
   on:dragstart={handleDragStart}
+  on:dragend={handleDragEnd}
   on:keydown={(e) => e.key === "Enter" && handleClipClick(e as any)}
   role="button"
   tabindex="0"

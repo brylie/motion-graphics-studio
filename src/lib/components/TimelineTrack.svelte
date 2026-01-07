@@ -3,6 +3,7 @@
   import TimelineClip from "./TimelineClip.svelte";
   import AutomationLane from "./AutomationLane.svelte";
   import { timelineActions } from "$lib/stores/timeline";
+  import { dragDropStore } from "$lib/stores/dragDrop";
   import { createEventDispatcher } from "svelte";
 
   export let track: Track;
@@ -89,12 +90,49 @@
   ) {
     dispatch("keyframemove", { clipId, paramName, ...detail });
   }
+
+  let isDragOver = false;
+
+  function handleDragEnter(e: DragEvent) {
+    e.preventDefault();
+    isDragOver = true;
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    // Only mark as not drag-over if we're leaving the track element itself
+    const currentTarget = e.currentTarget as HTMLElement;
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!currentTarget.contains(relatedTarget)) {
+      isDragOver = false;
+    }
+  }
+
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = "copy";
+    isDragOver = true;
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    isDragOver = false;
+
+    // The Timeline component will handle the actual drop logic
+    // This just ensures the track is a valid drop target
+  }
 </script>
 
 <div
   class="timeline-track"
+  class:drag-over={isDragOver}
   style="min-height: {trackHeight}px;"
   data-track-id={track.id}
+  on:dragenter={handleDragEnter}
+  on:dragleave={handleDragLeave}
+  on:dragover={handleDragOver}
+  on:drop={handleDrop}
+  role="region"
+  aria-label="Track {track.name}"
 >
   <!-- Track label column -->
   <div class="track-label">
@@ -192,6 +230,11 @@
     border-bottom: 1px solid #374151;
     background: #111827;
     position: relative;
+    transition: background-color 0.15s ease;
+  }
+
+  .timeline-track.drag-over {
+    background: #1f2937;
   }
 
   .track-label {
