@@ -699,8 +699,11 @@
           // Absolute mode: constrain to keyframe bounds based on ORIGINAL positions
           if (originalKeyframes.length > 0) {
             // Find earliest keyframe in original positions
-            const earliestOriginalKfTime = Math.min(...originalKeyframes.map(kf => kf.time));
-            const earliestKeyframeAbsoluteTime = originalClipStartTime + earliestOriginalKfTime;
+            const earliestOriginalKfTime = Math.min(
+              ...originalKeyframes.map((kf) => kf.time)
+            );
+            const earliestKeyframeAbsoluteTime =
+              originalClipStartTime + earliestOriginalKfTime;
             newStart = Math.max(newStart, earliestKeyframeAbsoluteTime);
           }
         }
@@ -786,8 +789,11 @@
           // Absolute mode: constrain to keyframe bounds based on ORIGINAL positions
           if (originalKeyframes.length > 0) {
             // Find latest keyframe in original positions
-            const latestOriginalKfTime = Math.max(...originalKeyframes.map(kf => kf.time));
-            const latestKeyframeAbsoluteTime = originalClipStartTime + latestOriginalKfTime;
+            const latestOriginalKfTime = Math.max(
+              ...originalKeyframes.map((kf) => kf.time)
+            );
+            const latestKeyframeAbsoluteTime =
+              originalClipStartTime + latestOriginalKfTime;
             newEnd = Math.max(newEnd, latestKeyframeAbsoluteTime);
           }
         }
