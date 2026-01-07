@@ -101,7 +101,7 @@
     if (isResizing && draggedClipId && resizeHandle) {
       const rect = timelineContainer.getBoundingClientRect();
       const scrollLeft = timelineContainer?.scrollLeft || 0;
-      const relativeX = e.clientX - rect.left + scrollLeft;
+      const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
       const currentTime = relativeX / $timelineView.pixelsPerSecond;
       const snappedTime = snapTime(currentTime);
 
