@@ -16,10 +16,12 @@
 
   // Constants
   const TRACK_HEIGHT = 60;
+  const AUTOMATION_LANE_HEIGHT = 40;
   const TRACK_MARGIN = 5;
   const RULER_HEIGHT = 30;
   const HANDLE_WIDTH = 8;
   const MIN_CLIP_WIDTH = 20;
+  const KEYFRAME_SIZE = 8;
 
   // Interaction state
   let isDragging = false;
@@ -32,6 +34,8 @@
   let hoveredClip: { clip: Clip; trackIndex: number } | null = null;
   let isDraggingOver = false;
   let dropTargetTrack = -1;
+  let draggedKeyframe: { clipId: string; paramName: string; time: number } | null = null;
+  let hoveredParameter: { clipId: string; paramName: string } | null = null;
 
   // Helper functions
   function timeToX(time: number): number {
@@ -43,12 +47,38 @@
   }
 
   function trackIndexToY(trackIndex: number): number {
-    return RULER_HEIGHT + trackIndex * (TRACK_HEIGHT + TRACK_MARGIN);
+    let y = RULER_HEIGHT;
+    for (let i = 0; i < trackIndex; i++) {
+      y += getTrackHeight(i) + TRACK_MARGIN;
+    }
+    return y;
+  }
+
+  function getTrackHeight(trackIndex: number): number {
+    let height = TRACK_HEIGHT;
+    const track = $timeline.tracks[trackIndex];
+    if (!track) return height;
+
+    // Add height for automation lanes (only for parameters with keyframes)
+    for (const clip of track.clips) {
+      const automationCount = clip.automation.filter(c => c.keyframes.length > 0).length;
+      height += automationCount * AUTOMATION_LANE_HEIGHT;
+    }
+    return height;
   }
 
   function yToTrackIndex(y: number): number {
     if (y < RULER_HEIGHT) return -1;
-    return Math.floor((y - RULER_HEIGHT) / (TRACK_HEIGHT + TRACK_MARGIN));
+    
+    let currentY = RULER_HEIGHT;
+    for (let i = 0; i < $timeline.tracks.length; i++) {
+      const trackHeight = getTrackHeight(i);
+      if (y >= currentY && y < currentY + trackHeight) {
+        return i;
+      }
+      currentY += trackHeight + TRACK_MARGIN;
+    }
+    return -1;
   }
 
   function getClipAtPosition(
@@ -236,7 +266,94 @@
         ctx!.fillStyle = "#ccc";
         ctx!.font = "10px monospace";
         ctx!.fillText(`${clip.duration.toFixed(1)}s`, x + 10, y + 35);
+
+        // Draw automation lanes for parameters with keyframes
+        let laneY = y + TRACK_HEIGHT;
+        clip.automation.forEach((curve) => {
+          if (curve.keyframes.length > 0) {
+            drawAutomationLane(clip, curve.parameterName, x, laneY, clipWidth);
+            laneY += AUTOMATION_LANE_HEIGHT;
+          }
+        });
       });
+    });
+  }
+
+  function drawAutomationLane(
+    clip: Clip,
+    paramName: string,
+    clipX: number,
+    laneY: number,
+    clipWidth: number
+  ) {
+    if (!ctx) return;
+
+    // Lane background
+    ctx.fillStyle = "#1a1a1a";
+    ctx.fillRect(clipX, laneY, clipWidth, AUTOMATION_LANE_HEIGHT);
+
+    // Lane border
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(clipX, laneY, clipWidth, AUTOMATION_LANE_HEIGHT);
+
+    // Parameter name
+    ctx.fillStyle = "#888";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(paramName, clipX + 5, laneY + 12);
+
+    // Find automation curve
+    const curve = clip.automation.find((c) => c.parameterName === paramName);
+    if (!curve || curve.keyframes.length === 0) return;
+
+    // Draw curve line
+    ctx.strokeStyle = "#4a9eff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    const minValue = 0;
+    const maxValue = 1; // Assume 0-1 range for now
+    const laneHeight = AUTOMATION_LANE_HEIGHT - 4;
+
+    curve.keyframes.forEach((keyframe, i) => {
+      const kfX = clipX + keyframe.time * $timelineView.pixelsPerSecond;
+      const normalizedValue = (keyframe.value - minValue) / (maxValue - minValue);
+      const kfY = laneY + laneHeight - normalizedValue * laneHeight + 2;
+
+      if (i === 0) {
+        ctx!.moveTo(kfX, kfY);
+      } else {
+        ctx!.lineTo(kfX, kfY);
+      }
+    });
+    ctx.stroke();
+
+    // Draw keyframe diamonds
+    curve.keyframes.forEach((keyframe) => {
+      const kfX = clipX + keyframe.time * $timelineView.pixelsPerSecond;
+      const normalizedValue = (keyframe.value - minValue) / (maxValue - minValue);
+      const kfY = laneY + laneHeight - normalizedValue * laneHeight + 2;
+
+      ctx!.save();
+      ctx!.translate(kfX, kfY);
+      ctx!.rotate(Math.PI / 4);
+      ctx!.fillStyle = "#4a9eff";
+      ctx!.fillRect(
+        -KEYFRAME_SIZE / 2,
+        -KEYFRAME_SIZE / 2,
+        KEYFRAME_SIZE,
+        KEYFRAME_SIZE
+      );
+      ctx!.strokeStyle = "#fff";
+      ctx!.lineWidth = 1;
+      ctx!.strokeRect(
+        -KEYFRAME_SIZE / 2,
+        -KEYFRAME_SIZE / 2,
+        KEYFRAME_SIZE,
+        KEYFRAME_SIZE
+      );
+      ctx!.restore();
     });
   }
 
@@ -524,6 +641,7 @@
     height: 100%;
     overflow: hidden;
     background: #1a1a1a;
+    position: relative;
   }
 
   canvas {

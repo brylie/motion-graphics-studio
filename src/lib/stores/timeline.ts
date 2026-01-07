@@ -1,6 +1,8 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import type { Timeline, Track, Clip, TimelineViewState } from './types';
 import { v4 as uuidv4 } from 'uuid';
+import { shaderLibrary } from './shaders';
+import { getDefaultValue } from '$lib/isf/parser';
 
 // Create initial timeline state
 function createInitialTimeline(): Timeline {
@@ -84,13 +86,28 @@ export const timelineActions = {
 		timeline.update(t => {
 			const tracks = t.tracks.map(track => {
 				if (track.id === trackId) {
+					// Get shader metadata to initialize parameters
+					const shaderLibraryState = get(shaderLibrary);
+					const shader = shaderLibraryState.shaders.find(s => s.filename === shaderName);
+					
+					// Initialize parameters with default values from shader
+					const parameters: { [key: string]: any } = {};
+					if (shader && shader.metadata.INPUTS) {
+						for (const input of shader.metadata.INPUTS) {
+							// Only include non-image inputs in parameters
+							if (input.TYPE !== 'image' && input.TYPE !== 'audio' && input.TYPE !== 'audioFFT') {
+								parameters[input.NAME] = getDefaultValue(input);
+							}
+						}
+					}
+					
 					const newClip: Clip = {
 						id: uuidv4(),
 						shaderId: shaderName,
 						shaderName,
 						startTime,
 						duration,
-						parameters: {},
+						parameters,
 						automation: [],
 						alpha: 1.0
 					};
@@ -192,6 +209,143 @@ export const timelineActions = {
 			const tracks = t.tracks.map(track => 
 				track.id === trackId ? { ...track, solo: !track.solo } : track
 			);
+			return { ...t, tracks };
+		});
+	},
+
+	/**
+	 * Add keyframe to clip parameter
+	 */
+	addKeyframe(clipId: string, parameterName: string, time: number, value: number) {
+		timeline.update(t => {
+			const tracks = t.tracks.map(track => ({
+				...track,
+				clips: track.clips.map(clip => {
+					if (clip.id !== clipId) return clip;
+					
+					// Find or create automation curve
+					let automation = [...clip.automation];
+					let curveIndex = automation.findIndex(c => c.parameterName === parameterName);
+					
+					if (curveIndex === -1) {
+						// Create new curve
+						automation.push({
+							parameterName,
+							keyframes: [{ time, value }]
+						});
+					} else {
+						// Add keyframe to existing curve (or update if exists at same time)
+						const curve = automation[curveIndex];
+						const existingIndex = curve.keyframes.findIndex(kf => Math.abs(kf.time - time) < 0.01);
+						
+						if (existingIndex !== -1) {
+							// Update existing keyframe
+							curve.keyframes[existingIndex].value = value;
+						} else {
+							// Add new keyframe and sort
+							curve.keyframes.push({ time, value });
+							curve.keyframes.sort((a, b) => a.time - b.time);
+						}
+					}
+					
+					return { ...clip, automation };
+				})
+			}));
+			return { ...t, tracks };
+		});
+	},
+
+	/**
+	 * Remove keyframe at specific time
+	 */
+	removeKeyframe(clipId: string, parameterName: string, time: number) {
+		timeline.update(t => {
+			const tracks = t.tracks.map(track => ({
+				...track,
+				clips: track.clips.map(clip => {
+					if (clip.id !== clipId) return clip;
+					
+					const automation = clip.automation.map(curve => {
+						if (curve.parameterName !== parameterName) return curve;
+						
+						return {
+							...curve,
+							keyframes: curve.keyframes.filter(kf => Math.abs(kf.time - time) >= 0.01)
+						};
+					}).filter(curve => curve.keyframes.length > 0);
+					
+					return { ...clip, automation };
+				})
+			}));
+			return { ...t, tracks };
+		});
+	},
+
+	/**
+	 * Update keyframe value
+	 */
+	updateKeyframe(clipId: string, parameterName: string, time: number, value: number) {
+		timeline.update(t => {
+			const tracks = t.tracks.map(track => ({
+				...track,
+				clips: track.clips.map(clip => {
+					if (clip.id !== clipId) return clip;
+					
+					const automation = clip.automation.map(curve => {
+						if (curve.parameterName !== parameterName) return curve;
+						
+						return {
+							...curve,
+							keyframes: curve.keyframes.map(kf =>
+								Math.abs(kf.time - time) < 0.01 ? { ...kf, value } : kf
+							)
+						};
+					});
+					
+					return { ...clip, automation };
+				})
+			}));
+			return { ...t, tracks };
+		});
+	},
+
+	/**
+	 * Clear all keyframes for a parameter
+	 */
+	clearKeyframes(clipId: string, parameterName: string) {
+		timeline.update(t => {
+			const tracks = t.tracks.map(track => ({
+				...track,
+				clips: track.clips.map(clip => {
+					if (clip.id !== clipId) return clip;
+					
+					const automation = clip.automation.filter(c => c.parameterName !== parameterName);
+					return { ...clip, automation };
+				})
+			}));
+			return { ...t, tracks };
+		});
+	},
+
+	/**
+	 * Update parameter base value
+	 */
+	updateParameter(clipId: string, parameterName: string, value: any) {
+		timeline.update(t => {
+			const tracks = t.tracks.map(track => ({
+				...track,
+				clips: track.clips.map(clip => {
+					if (clip.id !== clipId) return clip;
+					
+					return {
+						...clip,
+						parameters: {
+							...clip.parameters,
+							[parameterName]: value
+						}
+					};
+				})
+			}));
 			return { ...t, tracks };
 		});
 	}

@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { timeline, timelineView } from "$lib/stores/timeline";
+  import { timeline, timelineView, timelineActions } from "$lib/stores/timeline";
+  import { playback } from "$lib/stores/playback";
   import { getParameterValue } from "$lib/timeline/types";
-  import type { Clip } from "$lib/timeline/types";
+  import type { Clip, Keyframe } from "$lib/timeline/types";
 
   let selectedClip: Clip | null = null;
   let fileInput: HTMLInputElement;
   let imagePreview: string | null = null;
+  let selectedParameter: string | null = null;
 
   // Subscribe to selected clip changes
   $: {
@@ -21,8 +23,14 @@
       }
     } else {
       selectedClip = null;
+      selectedParameter = null;
     }
   }
+
+  // Get local time within clip
+  $: localTime = selectedClip 
+    ? Math.max(0, Math.min($playback.currentTime - selectedClip.startTime, selectedClip.duration))
+    : 0;
 
   function handleImageSelect() {
     fileInput.click();
@@ -56,6 +64,60 @@
     }
     return String(value);
   }
+
+  function hasKeyframes(paramName: string): boolean {
+    if (!selectedClip) return false;
+    const curve = selectedClip.automation.find(c => c.parameterName === paramName);
+    return curve ? curve.keyframes.length > 0 : false;
+  }
+
+  function getKeyframeCount(paramName: string): number {
+    if (!selectedClip) return 0;
+    const curve = selectedClip.automation.find(c => c.parameterName === paramName);
+    return curve ? curve.keyframes.length : 0;
+  }
+
+  function hasKeyframeAtCurrentTime(paramName: string): boolean {
+    if (!selectedClip) return false;
+    const curve = selectedClip.automation.find(c => c.parameterName === paramName);
+    if (!curve) return false;
+    return curve.keyframes.some(kf => Math.abs(kf.time - localTime) < 0.01);
+  }
+
+  function addKeyframe(paramName: string) {
+    if (!selectedClip) return;
+    
+    const currentValue = selectedClip.parameters[paramName];
+    if (typeof currentValue !== 'number') {
+      console.warn('Can only animate numeric parameters');
+      return;
+    }
+
+    timelineActions.addKeyframe(selectedClip.id, paramName, localTime, currentValue);
+  }
+
+  function removeKeyframe(paramName: string) {
+    if (!selectedClip) return;
+    timelineActions.removeKeyframe(selectedClip.id, paramName, localTime);
+  }
+
+  function updateParameterValue(paramName: string, value: number) {
+    if (!selectedClip) return;
+    
+    if (hasKeyframeAtCurrentTime(paramName)) {
+      // Update keyframe value
+      timelineActions.updateKeyframe(selectedClip.id, paramName, localTime, value);
+    } else {
+      // Update base parameter value
+      timelineActions.updateParameter(selectedClip.id, paramName, value);
+    }
+  }
+
+  function clearAllKeyframes(paramName: string) {
+    if (!selectedClip) return;
+    timelineActions.clearKeyframes(selectedClip.id, paramName);
+  }
+
 </script>
 
 <div class="parameter-panel">
@@ -110,11 +172,72 @@
 
         {#if Object.keys(selectedClip.parameters).length > 0}
           {#each Object.entries(selectedClip.parameters) as [name, value]}
-            <div class="parameter-row">
-              <span class="param-name">{name}:</span>
-              <span class="param-value">{getParameterDisplay(name, value)}</span
-              >
-            </div>
+            {#if typeof value === 'number'}
+              <div class="parameter-row animatable" class:selected={selectedParameter === name}>
+                <div class="param-header">
+                  <span class="param-name">{name}</span>
+                  <div class="keyframe-controls">
+                    {#if hasKeyframes(name)}
+                      <span class="keyframe-count" title="{getKeyframeCount(name)} keyframes">
+                        ◆ {getKeyframeCount(name)}
+                      </span>
+                    {/if}
+                    
+                    {#if hasKeyframeAtCurrentTime(name)}
+                      <button 
+                        class="keyframe-btn active"
+                        on:click={() => removeKeyframe(name)}
+                        title="Remove keyframe (current time has keyframe)"
+                      >
+                        ◆
+                      </button>
+                    {:else}
+                      <button 
+                        class="keyframe-btn"
+                        on:click={() => addKeyframe(name)}
+                        title="Add keyframe at current time"
+                      >
+                        ◇
+                      </button>
+                    {/if}
+                    
+                    {#if hasKeyframes(name)}
+                      <button 
+                        class="clear-btn"
+                        on:click={() => clearAllKeyframes(name)}
+                        title="Clear all keyframes"
+                      >
+                        ✕
+                      </button>
+                    {/if}
+                  </div>
+                </div>
+                
+                <div class="param-input">
+                  <input 
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={value}
+                    on:input={(e) => updateParameterValue(name, parseFloat(e.currentTarget.value))}
+                  />
+                  <input 
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={value}
+                    on:input={(e) => updateParameterValue(name, parseFloat(e.currentTarget.value))}
+                  />
+                </div>
+              </div>
+            {:else}
+              <div class="parameter-row">
+                <span class="param-name">{name}:</span>
+                <span class="param-value">{getParameterDisplay(name, value)}</span>
+              </div>
+            {/if}
           {/each}
         {:else}
           <p class="empty-state">No parameters available</p>
@@ -267,18 +390,153 @@
     font-size: 0.85rem;
   }
 
+  .parameter-row.animatable {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.75rem;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+
+  .parameter-row.animatable:hover {
+    background: #333;
+    border-color: #555;
+  }
+
+  .parameter-row.animatable.selected {
+    border-color: #4a9eff;
+    background: #2a3a4a;
+  }
+
+  .param-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
   .param-name {
     color: #aaa;
+    font-weight: 500;
+  }
+
+  .keyframe-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .keyframe-count {
+    font-size: 0.85rem;
+    color: #4a9eff;
+    font-weight: 600;
+  }
+
+  .keyframe-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: #444;
+    border: 1px solid #666;
+    border-radius: 3px;
+    color: #888;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .keyframe-btn:hover {
+    background: #555;
+    border-color: #4a9eff;
+    color: #4a9eff;
+  }
+
+  .keyframe-btn.active {
+    background: #4a9eff;
+    border-color: #4a9eff;
+    color: white;
+  }
+
+  .keyframe-btn.active:hover {
+    background: #ff4a4a;
+    border-color: #ff4a4a;
+  }
+
+  .clear-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: #444;
+    border: 1px solid #666;
+    border-radius: 3px;
+    color: #888;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .clear-btn:hover {
+    background: #ff4a4a;
+    border-color: #ff4a4a;
+    color: white;
+  }
+
+  .param-input {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .param-input input[type="range"] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #444;
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .param-input input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #4a9eff;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .param-input input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: #4a9eff;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .param-input input[type="number"] {
+    width: 70px;
+    padding: 0.25rem 0.5rem;
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 3px;
+    color: #fff;
+    font-size: 0.85rem;
+  }
+
+  .param-input input[type="number"]:focus {
+    outline: none;
+    border-color: #4a9eff;
   }
 
   .param-value {
     color: #ccc;
     font-family: monospace;
-  }
-
-  .keyframe-count {
-    color: #6a9fc7;
-    font-size: 0.8rem;
   }
 
   .empty-state {
