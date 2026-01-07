@@ -47,9 +47,9 @@ export interface PlaybackState {
 // UI/Interaction types
 export interface TimelineViewState {
 	pixelsPerSecond: number; // Zoom level
-	scrollX: number; // Horizontal scroll position in pixels
 	selectedClipId: string | null;
 	selectedTrackId: string | null;
+	selectedKeyframe: { clipId: string; paramName: string; time: number } | null;
 }
 
 export interface DragState {

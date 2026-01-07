@@ -1,0 +1,235 @@
+<script lang="ts">
+  import type { Clip } from "$lib/timeline/types";
+  import { timelineView, viewActions } from "$lib/stores/timeline";
+  import { dragDropStore } from "$lib/stores/dragDrop";
+  import { createEventDispatcher } from "svelte";
+
+  export let clip: Clip;
+  export let pixelsPerSecond: number;
+  export let isSelected: boolean = false;
+
+  const dispatch = createEventDispatcher<{
+    select: { clipId: string };
+    resizestart: { clipId: string; handle: "left" | "right"; startX: number };
+  }>();
+
+  let isResizingLeft = false;
+  let isResizingRight = false;
+  let clipElement: HTMLDivElement;
+
+  $: left = clip.startTime * pixelsPerSecond;
+  $: width = clip.duration * pixelsPerSecond;
+  $: isDraggable = !isResizingLeft && !isResizingRight;
+
+  function handleClipClick(e: MouseEvent) {
+    if (isResizingLeft || isResizingRight) return;
+    e.stopPropagation();
+    dispatch("select", { clipId: clip.id });
+  }
+
+  function handleDragStart(e: DragEvent) {
+    if (!e.dataTransfer) return;
+
+    // Select the clip when starting to drag
+    dispatch("select", { clipId: clip.id });
+
+    // Set drag state in store
+    dragDropStore.startDrag("clip", { clipId: clip.id }, clip.duration);
+
+    // Set drag data
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData(
+      "application/json",
+      JSON.stringify({
+        type: "clip",
+        clipId: clip.id,
+      })
+    );
+
+    // Create a compact drag image matching clip height
+    if (clipElement) {
+      const dragImage = clipElement.cloneNode(true) as HTMLElement;
+      dragImage.style.opacity = "0.5";
+      dragImage.style.position = "absolute";
+      dragImage.style.top = "-1000px";
+      dragImage.style.height = clipElement.offsetHeight + "px";
+      document.body.appendChild(dragImage);
+      e.dataTransfer.setDragImage(
+        dragImage,
+        e.offsetX,
+        clipElement.offsetHeight / 2
+      );
+      // Clean up after drag starts
+      setTimeout(() => document.body.removeChild(dragImage), 0);
+    }
+  }
+
+  function handleDragEnd() {
+    // Clean up drag state when drag ends (whether dropped or cancelled)
+    dragDropStore.endDrag();
+  }
+
+  function handleLeftResizeMouseDown(e: MouseEvent) {
+    e.stopPropagation();
+    isResizingLeft = true;
+    dispatch("resizestart", {
+      clipId: clip.id,
+      handle: "left",
+      startX: e.clientX,
+    });
+
+    // Add window-level mouseup listener to reset state
+    const handleMouseUp = () => {
+      isResizingLeft = false;
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+    window.addEventListener("mouseup", handleMouseUp);
+  }
+
+  function handleRightResizeMouseDown(e: MouseEvent) {
+    e.stopPropagation();
+    isResizingRight = true;
+    dispatch("resizestart", {
+      clipId: clip.id,
+      handle: "right",
+      startX: e.clientX,
+    });
+
+    // Add window-level mouseup listener to reset state
+    const handleMouseUp = () => {
+      isResizingRight = false;
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+    window.addEventListener("mouseup", handleMouseUp);
+  }
+</script>
+
+<div
+  bind:this={clipElement}
+  class="timeline-clip"
+  class:selected={isSelected}
+  data-clip-id={clip.id}
+  style="left: {left}px; width: {width}px;"
+  draggable={isDraggable}
+  on:click={handleClipClick}
+  on:dragstart={handleDragStart}
+  on:dragend={handleDragEnd}
+  on:keydown={(e) => e.key === "Enter" && handleClipClick(e as any)}
+  role="button"
+  tabindex="0"
+  aria-label="{clip.shaderName} clip from {clip.startTime}s for {clip.duration}s"
+>
+  <div class="clip-content">
+    <span class="clip-name">{clip.shaderName}</span>
+    <span class="clip-duration">{clip.duration.toFixed(2)}s</span>
+  </div>
+
+  {#if isSelected}
+    <div
+      class="resize-handle left"
+      on:mousedown={handleLeftResizeMouseDown}
+      role="button"
+      tabindex="0"
+      aria-label="Resize left edge"
+    ></div>
+    <div
+      class="resize-handle right"
+      on:mousedown={handleRightResizeMouseDown}
+      role="button"
+      tabindex="0"
+      aria-label="Resize right edge"
+    ></div>
+  {/if}
+</div>
+
+<style>
+  .timeline-clip {
+    position: absolute;
+    top: 2px;
+    height: calc(100% - 4px);
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    border: 1px solid #4a5568;
+    border-radius: 3px;
+    cursor: grab;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    transition: border-color 0.15s ease;
+    min-width: 20px;
+    overflow: hidden;
+  }
+
+  .timeline-clip:hover {
+    border-color: #60a5fa;
+  }
+
+  .timeline-clip.selected {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #5a6f88 0%, #3d4758 100%);
+    box-shadow: 0 0 0 1px #3b82f6;
+  }
+
+  .timeline-clip:active {
+    cursor: grabbing;
+  }
+
+  .clip-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 4px;
+    color: white;
+    font-size: 10px;
+    pointer-events: none;
+  }
+
+  .clip-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .clip-duration {
+    color: #a0aec0;
+    white-space: nowrap;
+    font-size: 9px;
+  }
+
+  .resize-handle {
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 10;
+  }
+
+  .resize-handle.left {
+    left: 0;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.3) 0%,
+      transparent 100%
+    );
+  }
+
+  .resize-handle.right {
+    right: 0;
+    background: linear-gradient(
+      270deg,
+      rgba(255, 255, 255, 0.3) 0%,
+      transparent 100%
+    );
+  }
+
+  .resize-handle:hover {
+    background: rgba(96, 165, 250, 0.4);
+  }
+
+  .resize-handle:active {
+    background: rgba(59, 130, 246, 0.6);
+  }
+</style>

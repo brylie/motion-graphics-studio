@@ -72,6 +72,77 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
+### Testing
+
+The project includes comprehensive test coverage across multiple levels:
+
+#### Unit Tests
+
+Run fast unit tests for store logic, utilities, and non-UI code:
+
+```sh
+npm run test:unit
+```
+
+Or run tests in watch mode during development:
+
+```sh
+npm run test:unit -- --watch
+```
+
+#### Component Tests
+
+Run component tests in a real browser environment (uses Playwright):
+
+```sh
+npm test
+```
+
+This runs both unit and component tests together.
+
+#### End-to-End Tests
+
+Run full e2e tests that simulate real user interactions:
+
+```sh
+npm run test:e2e
+```
+
+Run e2e tests in headed mode (opens browser window):
+
+```sh
+npm run test:e2e -- --headed
+```
+
+Run e2e tests in UI mode (interactive test runner):
+
+```sh
+npm run test:e2e -- --ui
+```
+
+#### Visual Testing with Storybook
+
+Launch Storybook to interactively test components and visual states:
+
+```sh
+npm run storybook
+```
+
+View stories at [http://localhost:6006](http://localhost:6006)
+
+Build static Storybook for deployment:
+
+```sh
+npm run build-storybook
+```
+
+#### Test Coverage
+
+- **Unit Tests**: Timeline store operations, track management, keyframe CRUD, clip operations
+- **Component Tests**: Svelte component rendering and behavior
+- **E2E Tests**: Timeline interactions, clip management, keyframe operations, resize behavior (absolute/proportional modes), regression tests for keyframe duplication bug
+- **Visual Tests**: Timeline states, automation curves, multi-track layouts
+
 ### Building
 
 To create a production version of your app:
@@ -177,6 +248,9 @@ void main() {
 - Playback controls
 - Shader library browser
 - Multi-track composition renderer
+- Comprehensive test coverage (unit, component, e2e)
+- Storybook for visual testing
+- Keyframe automation system with proportional/absolute resize modes
 
 ### In Progress 🚧
 - Audio integration with Tone.js
@@ -199,6 +273,9 @@ void main() {
 - **WebGL2**: Hardware-accelerated rendering
 - **Tone.js**: Web Audio API wrapper
 - **HTML Canvas**: Timeline interface
+- **Vitest**: Unit and component testing
+- **Playwright**: End-to-end testing
+- **Storybook**: Component development and visual testing
 
 ## License
 

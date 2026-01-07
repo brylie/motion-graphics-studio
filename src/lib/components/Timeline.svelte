@@ -7,527 +7,607 @@
     viewActions,
   } from "$lib/stores/timeline";
   import { playback, playbackActions } from "$lib/stores/playback";
-  import type { Clip, Track } from "$lib/timeline/types";
+  import { dragDropStore } from "$lib/stores/dragDrop";
+  import TimelineRuler from "./TimelineRuler.svelte";
+  import TimelineTrack from "./TimelineTrack.svelte";
+  import type { Clip } from "$lib/timeline/types";
 
-  let canvas: HTMLCanvasElement;
-  let ctx: CanvasRenderingContext2D | null;
-  let width = 1200;
-  let height = 400;
-
-  // Constants
-  const TRACK_HEIGHT = 60;
-  const TRACK_MARGIN = 5;
-  const RULER_HEIGHT = 30;
-  const HANDLE_WIDTH = 8;
-  const MIN_CLIP_WIDTH = 20;
-
-  // Interaction state
-  let isDragging = false;
+  let timelineContainer: HTMLDivElement;
   let isResizing = false;
   let resizeHandle: "left" | "right" | null = null;
   let dragStartX = 0;
   let dragStartTime = 0;
-  let draggedClip: Clip | null = null;
-  let draggedTrackIndex = -1;
-  let hoveredClip: { clip: Clip; trackIndex: number } | null = null;
-  let isDraggingOver = false;
-  let dropTargetTrack = -1;
+  let draggedClipId: string | null = null;
+  let originalClipDuration = 0;
+  let originalClipStartTime = 0;
+  let originalKeyframes: Array<{ curve: string; time: number; value: number }> =
+    [];
+  let altKeyPressed = false;
 
-  // Helper functions
-  function timeToX(time: number): number {
-    return time * $timelineView.pixelsPerSecond - $timelineView.scrollX;
-  }
-
-  function xToTime(x: number): number {
-    return (x + $timelineView.scrollX) / $timelineView.pixelsPerSecond;
-  }
-
-  function trackIndexToY(trackIndex: number): number {
-    return RULER_HEIGHT + trackIndex * (TRACK_HEIGHT + TRACK_MARGIN);
-  }
-
-  function yToTrackIndex(y: number): number {
-    if (y < RULER_HEIGHT) return -1;
-    return Math.floor((y - RULER_HEIGHT) / (TRACK_HEIGHT + TRACK_MARGIN));
-  }
-
-  function getClipAtPosition(
-    x: number,
-    y: number
-  ): { clip: Clip; trackIndex: number } | null {
-    const time = xToTime(x);
-    const trackIndex = yToTrackIndex(y);
-
-    if (trackIndex < 0 || trackIndex >= $timeline.tracks.length) return null;
-
-    const track = $timeline.tracks[trackIndex];
-    const clip = track.clips.find((c) => {
-      return time >= c.startTime && time <= c.startTime + c.duration;
-    });
-
-    return clip ? { clip, trackIndex } : null;
-  }
-
-  function getResizeHandle(
-    clip: Clip,
-    trackIndex: number,
-    x: number,
-    y: number
-  ): "left" | "right" | null {
-    const clipX = timeToX(clip.startTime);
-    const clipY = trackIndexToY(trackIndex);
-    const clipWidth = clip.duration * $timelineView.pixelsPerSecond;
-
-    if (y < clipY || y > clipY + TRACK_HEIGHT) return null;
-
-    if (Math.abs(x - clipX) < HANDLE_WIDTH) return "left";
-    if (Math.abs(x - (clipX + clipWidth)) < HANDLE_WIDTH) return "right";
-
-    return null;
-  }
+  const LABEL_WIDTH = 80; // Must match TimelineTrack and TimelineRuler label column width
+  $: totalWidth = $timeline.duration * $timelineView.pixelsPerSecond;
+  $: playheadPosition =
+    LABEL_WIDTH + $playback.currentTime * $timelineView.pixelsPerSecond;
 
   function snapTime(time: number, gridSize: number = 0.1): number {
     return Math.round(time / gridSize) * gridSize;
   }
 
-  // Drawing functions
-  function drawRuler() {
-    if (!ctx) return;
-
-    ctx.fillStyle = "#2b2b2b";
-    ctx.fillRect(0, 0, width, RULER_HEIGHT);
-
-    // Draw time markers
-    const startTime = xToTime(0);
-    const endTime = xToTime(width);
-    const step = $timelineView.pixelsPerSecond > 50 ? 1 : 5; // 1 second or 5 seconds
-
-    ctx.strokeStyle = "#555";
-    ctx.fillStyle = "#ccc";
-    ctx.font = "11px monospace";
-    ctx.textAlign = "center";
-
-    for (let t = Math.floor(startTime); t <= Math.ceil(endTime); t += step) {
-      const x = timeToX(t);
-      if (x < 0 || x > width) continue;
-
-      // Draw tick
-      ctx.beginPath();
-      ctx.moveTo(x, RULER_HEIGHT - 10);
-      ctx.lineTo(x, RULER_HEIGHT);
-      ctx.stroke();
-
-      // Draw label
-      ctx.fillText(`${t}s`, x, RULER_HEIGHT - 15);
+  function handleKeyDown(e: KeyboardEvent) {
+    // Cancel drag operation on ESC key
+    if (e.key === "Escape" && $dragDropStore.isDragging) {
+      dragDropStore.endDrag();
     }
-
-    // Draw grid lines
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 1;
-    for (let t = Math.floor(startTime); t <= Math.ceil(endTime); t += step) {
-      const x = timeToX(t);
-      if (x < 0 || x > width) continue;
-
-      ctx.beginPath();
-      ctx.moveTo(x, RULER_HEIGHT);
-      ctx.lineTo(x, height);
-      ctx.stroke();
-    }
-  }
-
-  function drawTracks() {
-    if (!ctx) return;
-
-    $timeline.tracks.forEach((track, index) => {
-      const y = trackIndexToY(index);
-
-      // Draw track background
-      const isSelected = $timelineView.selectedTrackId === track.id;
-      const isDropTarget = isDraggingOver && dropTargetTrack === index;
-      
-      if (isDropTarget) {
-        ctx!.fillStyle = "#3a5a7a";
-      } else if (isSelected) {
-        ctx!.fillStyle = "#2a2a2a";
-      } else {
-        ctx!.fillStyle = "#1e1e1e";
-      }
-      ctx!.fillRect(0, y, width, TRACK_HEIGHT);
-
-      // Draw track border
-      ctx!.strokeStyle = isDropTarget ? "#6a9fc7" : "#444";
-      ctx!.lineWidth = isDropTarget ? 2 : 1;
-      ctx!.strokeRect(0, y, width, TRACK_HEIGHT);
-
-      // Draw track label
-      ctx!.fillStyle = track.muted ? "#666" : "#aaa";
-      ctx!.font = "12px sans-serif";
-      ctx!.textAlign = "left";
-      ctx!.fillText(`Track ${index + 1}`, 5, y + 15);
-      if (track.solo) {
-        ctx!.fillStyle = "#ff0";
-        ctx!.fillText("S", 65, y + 15);
-      }
-      if (track.muted) {
-        ctx!.fillStyle = "#f00";
-        ctx!.fillText("M", 80, y + 15);
-      }
-    });
-  }
-
-  function drawClips() {
-    if (!ctx) return;
-
-    $timeline.tracks.forEach((track, trackIndex) => {
-      const y = trackIndexToY(trackIndex);
-
-      track.clips.forEach((clip) => {
-        const x = timeToX(clip.startTime);
-        const clipWidth = Math.max(
-          MIN_CLIP_WIDTH,
-          clip.duration * $timelineView.pixelsPerSecond
-        );
-
-        // Skip if out of view
-        if (x + clipWidth < 0 || x > width) return;
-
-        // Determine clip color
-        const isSelected = $timelineView.selectedClipId === clip.id;
-        const isHovered = hoveredClip?.clip.id === clip.id;
-
-        let fillColor = "#4a7ba7";
-        if (isSelected) fillColor = "#6a9fc7";
-        if (isHovered) fillColor = "#5a8bb7";
-
-        // Draw clip body
-        ctx!.fillStyle = fillColor;
-        ctx!.fillRect(x, y + 2, clipWidth, TRACK_HEIGHT - 4);
-
-        // Draw clip border
-        ctx!.strokeStyle = isSelected ? "#8ac9ff" : "#7a9fb7";
-        ctx!.lineWidth = isSelected ? 2 : 1;
-        ctx!.strokeRect(x, y + 2, clipWidth, TRACK_HEIGHT - 4);
-
-        // Draw resize handles
-        if (isSelected || isHovered) {
-          ctx!.fillStyle = "#fff";
-          ctx!.fillRect(x, y + 2, HANDLE_WIDTH, TRACK_HEIGHT - 4);
-          ctx!.fillRect(
-            x + clipWidth - HANDLE_WIDTH,
-            y + 2,
-            HANDLE_WIDTH,
-            TRACK_HEIGHT - 4
-          );
-        }
-
-        // Draw clip label
-        ctx!.fillStyle = "#fff";
-        ctx!.font = "11px sans-serif";
-        ctx!.textAlign = "left";
-        const label = clip.shaderId || "Clip";
-        ctx!.save();
-        ctx!.beginPath();
-        ctx!.rect(x + 2, y + 2, clipWidth - 4, TRACK_HEIGHT - 4);
-        ctx!.clip();
-        ctx!.fillText(label, x + 10, y + 20);
-        ctx!.restore();
-
-        // Draw duration
-        ctx!.fillStyle = "#ccc";
-        ctx!.font = "10px monospace";
-        ctx!.fillText(`${clip.duration.toFixed(1)}s`, x + 10, y + 35);
-      });
-    });
-  }
-
-  function drawPlayhead() {
-    if (!ctx) return;
-
-    const x = timeToX($playback.currentTime);
-
-    // Draw playhead line
-    ctx.strokeStyle = "#ff3333";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
-    ctx.stroke();
-
-    // Draw playhead triangle
-    ctx.fillStyle = "#ff3333";
-    ctx.beginPath();
-    ctx.moveTo(x, RULER_HEIGHT);
-    ctx.lineTo(x - 6, RULER_HEIGHT - 10);
-    ctx.lineTo(x + 6, RULER_HEIGHT - 10);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  function render() {
-    if (!ctx) return;
-
-    // Clear canvas
-    ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(0, 0, width, height);
-
-    drawRuler();
-    drawTracks();
-    drawClips();
-    drawPlayhead();
-  }
-
-  // Event handlers
-  function handleMouseDown(e: MouseEvent) {
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Check if clicking on playhead in ruler
-    if (y < RULER_HEIGHT) {
-      const clickTime = xToTime(x);
-      playbackActions.seek(clickTime);
-      return;
-    }
-
-    // Check for clip interaction
-    const clipAtPos = getClipAtPosition(x, y);
-    if (clipAtPos) {
-      const { clip, trackIndex } = clipAtPos;
-      viewActions.selectClip(clip.id);
-
-      // Check for resize handle
-      const handle = getResizeHandle(clip, trackIndex, x, y);
-      if (handle) {
-        isResizing = true;
-        resizeHandle = handle;
-        draggedClip = clip;
-        draggedTrackIndex = trackIndex;
-        dragStartX = x;
-        dragStartTime =
-          handle === "left" ? clip.startTime : clip.startTime + clip.duration;
-      } else {
-        isDragging = true;
-        draggedClip = clip;
-        draggedTrackIndex = trackIndex;
-        dragStartX = x;
-        dragStartTime = clip.startTime;
-      }
-    } else {
-      viewActions.selectClip(null);
-    }
-  }
-
-  function handleMouseMove(e: MouseEvent) {
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Update hovered clip
-    hoveredClip = getClipAtPosition(x, y);
-
-    // Update cursor
-    if (hoveredClip) {
-      const handle = getResizeHandle(
-        hoveredClip.clip,
-        hoveredClip.trackIndex,
-        x,
-        y
-      );
-      canvas.style.cursor = handle ? "ew-resize" : "move";
-    } else {
-      canvas.style.cursor = "default";
-    }
-
-    // Handle dragging
-    if (isDragging && draggedClip) {
-      const deltaX = x - dragStartX;
-      const deltaTime = deltaX / $timelineView.pixelsPerSecond;
-      const newTime = snapTime(Math.max(0, dragStartTime + deltaTime));
-      timelineActions.updateClipTime(draggedClip.id, newTime);
-    }
-
-    // Handle resizing
-    if (isResizing && draggedClip && resizeHandle) {
-      const currentTime = xToTime(x);
-      const snappedTime = snapTime(currentTime);
-
-      if (resizeHandle === "left") {
-        const maxStart = draggedClip.startTime + draggedClip.duration - 0.1;
-        const newStart = Math.min(snappedTime, maxStart);
-        const newDuration =
-          draggedClip.startTime + draggedClip.duration - newStart;
-        timelineActions.updateClipTime(draggedClip.id, newStart);
-        timelineActions.updateClipDuration(draggedClip.id, newDuration);
-      } else {
-        const minEnd = draggedClip.startTime + 0.1;
-        const newEnd = Math.max(snappedTime, minEnd);
-        const newDuration = newEnd - draggedClip.startTime;
-        timelineActions.updateClipDuration(draggedClip.id, newDuration);
-      }
-    }
-
-    render();
-  }
-
-  function handleMouseUp() {
-    isDragging = false;
-    isResizing = false;
-    resizeHandle = null;
-    draggedClip = null;
-    draggedTrackIndex = -1;
-    render();
   }
 
   function handleWheel(e: WheelEvent) {
-    e.preventDefault();
-
     if (e.ctrlKey || e.metaKey) {
-      // Zoom
+      e.preventDefault();
       const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
       const newZoom = Math.max(
         10,
         Math.min(200, $timelineView.pixelsPerSecond * zoomFactor)
       );
       viewActions.setZoom(newZoom);
-    } else {
-      // Scroll
-      const scrollAmount = e.deltaY;
-      viewActions.setScroll($timelineView.scrollX + scrollAmount);
+    }
+    // Otherwise allow native scroll
+  }
+
+  function handleClipSelect(e: CustomEvent<{ clipId: string }>) {
+    viewActions.selectClip(e.detail.clipId);
+  }
+
+  function handleClipResizeStart(
+    e: CustomEvent<{ clipId: string; handle: "left" | "right"; startX: number }>
+  ) {
+    isResizing = true;
+    resizeHandle = e.detail.handle;
+    draggedClipId = e.detail.clipId;
+    dragStartX = e.detail.startX;
+
+    // Find clip and store original state
+    for (const track of $timeline.tracks) {
+      const clip = track.clips.find((c) => c.id === e.detail.clipId);
+      if (clip) {
+        originalClipStartTime = clip.startTime;
+        originalClipDuration = clip.duration;
+        dragStartTime =
+          e.detail.handle === "left"
+            ? clip.startTime
+            : clip.startTime + clip.duration;
+
+        // Store original keyframe positions
+        originalKeyframes = [];
+        for (const curve of clip.automation) {
+          for (const kf of curve.keyframes) {
+            originalKeyframes.push({
+              curve: curve.parameterName,
+              time: kf.time,
+              value: kf.value,
+            });
+          }
+        }
+        break;
+      }
     }
 
-    render();
+    window.addEventListener("mousemove", handleWindowMouseMove);
+    window.addEventListener("mouseup", handleWindowMouseUp);
+  }
+
+  function handleWindowMouseMove(e: MouseEvent) {
+    altKeyPressed = e.altKey;
+
+    if (isResizing && draggedClipId && resizeHandle) {
+      const rect = timelineContainer.getBoundingClientRect();
+      const scrollLeft = timelineContainer?.scrollLeft || 0;
+      const relativeX = e.clientX - rect.left + scrollLeft;
+      const currentTime = relativeX / $timelineView.pixelsPerSecond;
+      const snappedTime = snapTime(currentTime);
+
+      const clip = findClip(draggedClipId);
+      if (!clip) return;
+
+      const proportionalMode = e.altKey;
+
+      if (resizeHandle === "left") {
+        const originalEnd = originalClipStartTime + originalClipDuration;
+        const maxStart = originalEnd - 0.1;
+        let newStart = Math.min(snappedTime, maxStart);
+
+        if (!proportionalMode && originalKeyframes.length > 0) {
+          const earliestOriginalKfTime = Math.min(
+            ...originalKeyframes.map((kf) => kf.time)
+          );
+          const earliestKeyframeAbsoluteTime =
+            originalClipStartTime + earliestOriginalKfTime;
+          if (newStart > originalClipStartTime) {
+            newStart = Math.min(newStart, earliestKeyframeAbsoluteTime);
+          }
+        }
+
+        const newDuration = originalEnd - newStart;
+        updateKeyframesForResize(
+          clip,
+          newStart,
+          newDuration,
+          proportionalMode,
+          "left"
+        );
+        timelineActions.updateClipTime(draggedClipId, newStart);
+        timelineActions.updateClipDuration(draggedClipId, newDuration);
+      } else {
+        const minEnd = originalClipStartTime + 0.1;
+        let newEnd = Math.max(snappedTime, minEnd);
+
+        if (!proportionalMode && originalKeyframes.length > 0) {
+          const latestOriginalKfTime = Math.max(
+            ...originalKeyframes.map((kf) => kf.time)
+          );
+          const latestKeyframeAbsoluteTime =
+            originalClipStartTime + latestOriginalKfTime;
+          newEnd = Math.max(newEnd, latestKeyframeAbsoluteTime);
+        }
+
+        const newDuration = newEnd - originalClipStartTime;
+        updateKeyframesForResize(
+          clip,
+          originalClipStartTime,
+          newDuration,
+          proportionalMode,
+          "right"
+        );
+        timelineActions.updateClipDuration(draggedClipId, newDuration);
+      }
+    }
+  }
+
+  function handleWindowMouseUp() {
+    isResizing = false;
+    resizeHandle = null;
+    draggedClipId = null;
+    originalKeyframes = [];
+    window.removeEventListener("mousemove", handleWindowMouseMove);
+    window.removeEventListener("mouseup", handleWindowMouseUp);
+  }
+
+  function findClip(clipId: string): Clip | null {
+    for (const track of $timeline.tracks) {
+      const clip = track.clips.find((c) => c.id === clipId);
+      if (clip) return clip;
+    }
+    return null;
+  }
+
+  function updateKeyframesForResize(
+    clip: Clip,
+    newStart: number,
+    newDuration: number,
+    proportionalMode: boolean,
+    handle: "left" | "right"
+  ) {
+    if (originalKeyframes.length === 0) return;
+
+    const updates: Map<
+      string,
+      Array<{ time: number; value: number }>
+    > = new Map();
+
+    for (const originalKf of originalKeyframes) {
+      let newTime: number;
+
+      if (proportionalMode) {
+        const relativePosition = originalKf.time / originalClipDuration;
+        newTime = relativePosition * newDuration;
+      } else {
+        if (handle === "left") {
+          const absoluteTime = originalClipStartTime + originalKf.time;
+          newTime = absoluteTime - newStart;
+        } else {
+          newTime = originalKf.time;
+        }
+      }
+
+      if (!updates.has(originalKf.curve)) {
+        updates.set(originalKf.curve, []);
+      }
+      updates
+        .get(originalKf.curve)!
+        .push({ time: newTime, value: originalKf.value });
+    }
+
+    for (const [curveName, keyframes] of updates) {
+      timelineActions.clearKeyframes(clip.id, curveName);
+      for (const kf of keyframes) {
+        timelineActions.addKeyframe(clip.id, curveName, kf.time, kf.value);
+      }
+    }
+  }
+
+  function handleKeyframeSelect(
+    e: CustomEvent<{ clipId: string; paramName: string; time: number }>
+  ) {
+    const { clipId, paramName, time } = e.detail;
+    if (time === -1) {
+      viewActions.selectKeyframe(null, null, null);
+    } else {
+      viewActions.selectKeyframe(clipId, paramName, time);
+      viewActions.selectClip(clipId);
+    }
+  }
+
+  function handleKeyframeMove(
+    e: CustomEvent<{
+      clipId: string;
+      paramName: string;
+      oldTime: number;
+      newTime: number;
+      newValue: number;
+    }>
+  ) {
+    const { clipId, paramName, oldTime, newTime, newValue } = e.detail;
+    timelineActions.removeKeyframe(clipId, paramName, oldTime);
+    timelineActions.addKeyframe(clipId, paramName, newTime, newValue);
+    viewActions.selectKeyframe(clipId, paramName, newTime);
   }
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
     if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = "copy";
+      // Check if it's a clip being dragged
+      const types = Array.from(e.dataTransfer.types);
+      if (types.includes("application/json")) {
+        e.dataTransfer.dropEffect = "move";
+      } else {
+        e.dataTransfer.dropEffect = "copy";
+      }
     }
-    
-    // Track which track we're hovering over
-    const rect = canvas.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const trackIndex = yToTrackIndex(y);
-    
-    if (trackIndex >= 0 && trackIndex < $timeline.tracks.length) {
-      isDraggingOver = true;
-      dropTargetTrack = trackIndex;
-      render();
-    } else {
-      isDraggingOver = false;
-      dropTargetTrack = -1;
+
+    // Update preview position
+    const trackId = getTrackAtPosition(e.clientY);
+    if (trackId) {
+      const rect = timelineContainer.getBoundingClientRect();
+      const scrollLeft = timelineContainer?.scrollLeft || 0;
+      const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
+      const dropTime = snapTime(
+        Math.max(0, relativeX / $timelineView.pixelsPerSecond)
+      );
+      dragDropStore.updatePreview(trackId, dropTime, true);
     }
   }
-  
-  function handleDragLeave() {
-    isDraggingOver = false;
-    dropTargetTrack = -1;
-    render();
+
+  function handleDragLeave(e: DragEvent) {
+    // Only hide preview if we're leaving the timeline container
+    const currentTarget = e.currentTarget as HTMLElement;
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!currentTarget.contains(relatedTarget)) {
+      dragDropStore.updatePreview(null, 0, false);
+    }
+  }
+
+  function getTrackAtPosition(y: number): string | null {
+    // Find which track element the mouse is over
+    const trackElements = timelineContainer.querySelectorAll(".timeline-track");
+    for (const trackEl of trackElements) {
+      const rect = trackEl.getBoundingClientRect();
+      if (y >= rect.top && y <= rect.bottom) {
+        return trackEl.getAttribute("data-track-id");
+      }
+    }
+    return null;
   }
 
   function handleDrop(e: DragEvent) {
+    console.log("[Timeline] Drop event received", e);
     e.preventDefault();
 
-    if (!e.dataTransfer) return;
+    if (!e.dataTransfer) {
+      console.warn("[Timeline] No dataTransfer in drop event");
+      return;
+    }
 
     try {
-      // Try to get data from different formats
       let dataStr = e.dataTransfer.getData("application/json");
+      console.log("[Timeline] getData('application/json'):", dataStr);
+
       if (!dataStr) {
         dataStr = e.dataTransfer.getData("text/plain");
+        console.log("[Timeline] getData('text/plain'):", dataStr);
       }
-      
+
       if (!dataStr) {
-        console.log("No data found in drop event");
+        console.warn("[Timeline] No drag data found in dataTransfer");
+        console.log("[Timeline] Available types:", e.dataTransfer.types);
         return;
       }
 
       const data = JSON.parse(dataStr);
-      console.log("Drop data:", data);
+      console.log(
+        "[Timeline] Drop data:",
+        data,
+        "clientY:",
+        e.clientY,
+        "target:",
+        e.target
+      );
 
       if (data.type === "shader" && data.shaderId) {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        // Detect which track the drop occurred on
+        // Try to find track from the actual drop target first
+        let trackId: string | null = null;
+        let targetElement = e.target as HTMLElement;
 
-        // Determine drop time and track
-        const dropTime = snapTime(Math.max(0, xToTime(x)));
-        const trackIndex = yToTrackIndex(y);
+        // Traverse up to find the track element
+        while (targetElement && !trackId) {
+          if (
+            targetElement.hasAttribute &&
+            targetElement.hasAttribute("data-track-id")
+          ) {
+            trackId = targetElement.getAttribute("data-track-id");
+            break;
+          }
+          if (targetElement.closest) {
+            const trackEl = targetElement.closest("[data-track-id]");
+            if (trackEl) {
+              trackId = trackEl.getAttribute("data-track-id");
+              break;
+            }
+          }
+          targetElement = targetElement.parentElement as HTMLElement;
+        }
 
-        console.log(`Dropping shader at track ${trackIndex}, time ${dropTime}`);
+        // Fallback to position-based detection
+        if (!trackId) {
+          trackId = getTrackAtPosition(e.clientY);
+        }
 
-        // Add clip to the appropriate track
-        if (trackIndex >= 0 && trackIndex < $timeline.tracks.length) {
-          const trackId = $timeline.tracks[trackIndex].id;
-          timelineActions.addClip(trackId, data.shaderId, dropTime, 5.0);
-          isDraggingOver = false;
-          dropTargetTrack = -1;
-          render();
+        console.log("Detected track ID:", trackId);
+
+        if (!trackId) {
+          console.warn("No track found at drop position");
+          return;
+        }
+
+        const rect = timelineContainer.getBoundingClientRect();
+        const scrollLeft = timelineContainer?.scrollLeft || 0;
+        const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
+        const dropTime = snapTime(
+          Math.max(0, relativeX / $timelineView.pixelsPerSecond)
+        );
+
+        timelineActions.addClip(trackId, data.shaderId, dropTime, 5.0);
+      } else if (data.type === "clip" && data.clipId) {
+        // Moving an existing clip to a different track
+        const targetTrackId = getTrackAtPosition(e.clientY);
+
+        if (!targetTrackId) {
+          console.warn("No track found at drop position");
+          return;
+        }
+
+        // Find the source clip
+        let sourceClip = null;
+        let sourceTrackId = null;
+        for (const track of $timeline.tracks) {
+          const clip = track.clips.find((c) => c.id === data.clipId);
+          if (clip) {
+            sourceClip = clip;
+            sourceTrackId = track.id;
+            break;
+          }
+        }
+
+        if (!sourceClip || !sourceTrackId) {
+          console.warn("Source clip not found");
+          return;
+        }
+
+        const rect = timelineContainer.getBoundingClientRect();
+        const scrollLeft = timelineContainer?.scrollLeft || 0;
+        const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
+        const dropTime = snapTime(
+          Math.max(0, relativeX / $timelineView.pixelsPerSecond)
+        );
+
+        // If dropping on a different track, move the clip
+        if (targetTrackId !== sourceTrackId) {
+          // Remove from source track and add to target track
+          timelineActions.removeClip(data.clipId);
+          timelineActions.addClip(
+            targetTrackId,
+            sourceClip.shaderId,
+            dropTime,
+            sourceClip.duration,
+            sourceClip.parameters,
+            sourceClip.automation
+          );
         } else {
-          console.log(`Invalid track index: ${trackIndex}`);
+          // Same track, just update position
+          timelineActions.updateClipTime(data.clipId, dropTime);
         }
       }
     } catch (error) {
       console.error("Failed to handle drop:", error);
+    } finally {
+      // Always clear the drag state when drop completes
+      dragDropStore.endDrag();
     }
-    
-    isDraggingOver = false;
-    dropTargetTrack = -1;
   }
 
-  onMount(() => {
-    ctx = canvas.getContext("2d");
-    if (!ctx) {
-      console.error("Failed to get 2D context");
-      return;
+  // Calculate preview rectangle position and dimensions
+  $: previewStyle = (() => {
+    if (
+      !$dragDropStore.previewPosition.visible ||
+      !$dragDropStore.previewPosition.trackId
+    ) {
+      return "display: none;";
     }
 
-    // Set canvas size
-    canvas.width = width;
-    canvas.height = height;
+    const trackIndex = $timeline.tracks.findIndex(
+      (t) => t.id === $dragDropStore.previewPosition.trackId
+    );
 
-    // Initial render
-    render();
+    if (trackIndex === -1) return "display: none;";
 
-    // Subscribe to store changes
-    const unsubscribers = [
-      timeline.subscribe(() => render()),
-      timelineView.subscribe(() => render()),
-      playback.subscribe(() => render()),
-    ];
+    const left =
+      LABEL_WIDTH +
+      $dragDropStore.previewPosition.time * $timelineView.pixelsPerSecond;
+    const width = $dragDropStore.duration * $timelineView.pixelsPerSecond;
 
-    return () => {
-      unsubscribers.forEach((u) => u());
-    };
+    // Calculate top position by summing heights of all previous tracks
+    let top = 0;
+    for (let i = 0; i < trackIndex; i++) {
+      const track = $timeline.tracks[i];
+      // Count automation parameters with keyframes
+      const automationCount = new Set(
+        track.clips.flatMap((clip) =>
+          clip.automation
+            .filter((curve) => curve.keyframes.length > 0)
+            .map((curve) => curve.parameterName)
+        )
+      ).size;
+      const trackHeight = 28 + automationCount * 50; // TRACK_HEIGHT + AUTOMATION_LANE_HEIGHT
+      top += trackHeight;
+    }
+
+    return `left: ${left}px; top: ${top}px; width: ${width}px; height: 28px; display: block;`;
+  })();
+
+  onMount(() => {
+    // Timeline is now ready
   });
 </script>
 
-<div class="timeline-container">
-  <canvas
-    bind:this={canvas}
-    on:mousedown={handleMouseDown}
-    on:mousemove={handleMouseMove}
-    on:mouseup={handleMouseUp}
-    on:mouseleave={handleMouseUp}
-    on:wheel={handleWheel}
-    on:dragover={handleDragOver}
-    on:dragleave={handleDragLeave}
-    on:drop={handleDrop}
-    {width}
-    {height}
-  ></canvas>
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div
+  class="timeline-container"
+  bind:this={timelineContainer}
+  on:wheel={handleWheel}
+  on:dragover={handleDragOver}
+  on:dragleave={handleDragLeave}
+  on:drop={handleDrop}
+  on:keydown={handleKeyDown}
+  role="application"
+  aria-label="Timeline"
+  tabindex="0"
+>
+  <div class="timeline-content" style="width: {totalWidth}px;">
+    <TimelineRuler
+      duration={$timeline.duration}
+      pixelsPerSecond={$timelineView.pixelsPerSecond}
+    />
+
+    <!-- Playhead -->
+    <div
+      class="playhead"
+      style="left: {playheadPosition}px;"
+      aria-label="Current time: {$playback.currentTime.toFixed(2)}s"
+    ></div>
+
+    <!-- Mode indicator -->
+    {#if isResizing && altKeyPressed}
+      <div class="mode-indicator proportional">PROPORTIONAL MODE (Alt)</div>
+    {:else if isResizing}
+      <div class="mode-indicator absolute">ABSOLUTE MODE</div>
+    {/if}
+
+    <!-- Clip Preview Rectangle -->
+    {#if $dragDropStore.previewPosition.visible}
+      <div class="clip-preview" style={previewStyle}></div>
+    {/if}
+
+    <!-- Tracks -->
+    <div class="tracks-container">
+      {#each $timeline.tracks as track (track.id)}
+        <TimelineTrack
+          {track}
+          pixelsPerSecond={$timelineView.pixelsPerSecond}
+          selectedClipId={$timelineView.selectedClipId}
+          selectedKeyframe={$timelineView.selectedKeyframe}
+          on:clipselect={handleClipSelect}
+          on:clipresizestart={handleClipResizeStart}
+          on:keyframeselect={handleKeyframeSelect}
+          on:keyframemove={handleKeyframeMove}
+        />
+      {/each}
+    </div>
+  </div>
 </div>
 
 <style>
   .timeline-container {
     width: 100%;
     height: 100%;
-    overflow: hidden;
-    background: #1a1a1a;
+    overflow: auto;
+    background: #111827;
+    position: relative;
+    cursor: default;
   }
 
-  canvas {
-    display: block;
-    cursor: default;
+  .timeline-content {
+    position: relative;
+    min-height: 100%;
+  }
+
+  .tracks-container {
+    display: grid;
+    grid-auto-rows: minmax(60px, auto);
+    gap: 0;
+  }
+
+  .playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #ef4444;
+    pointer-events: none;
+    z-index: 101;
+  }
+
+  .playhead::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -6px;
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 10px solid #ef4444;
+  }
+
+  .mode-indicator {
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: monospace;
+    color: white;
+    z-index: 1000;
+    pointer-events: none;
+  }
+
+  .mode-indicator.proportional {
+    background: rgba(251, 146, 60, 0.95);
+  }
+
+  .mode-indicator.absolute {
+    background: rgba(59, 130, 246, 0.95);
+  }
+
+  .clip-preview {
+    position: absolute;
+    background: rgba(59, 130, 246, 0.3);
+    border: 2px dashed rgba(59, 130, 246, 0.8);
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 50;
+    transition:
+      left 0.05s ease,
+      top 0.05s ease;
   }
 </style>
