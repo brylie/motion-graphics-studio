@@ -23,6 +23,7 @@
   } from "$lib/stores/timeline";
   import { playback, playbackActions } from "$lib/stores/playback";
   import type { Clip, Track } from "$lib/timeline/types";
+  import { moveKeyframe, findKeyframeIndex } from "$lib/utils/keyframes";
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null;
@@ -596,7 +597,7 @@
     if (isDraggingKeyframe && selectedKeyframe) {
       const deltaX = x - dragStartX;
       const deltaTime = deltaX / $timelineView.pixelsPerSecond;
-      const newRelativeTime = snapTime(Math.max(0, dragStartTime + deltaTime));
+      const desiredRelativeTime = dragStartTime + deltaTime;
 
       // Find the clip
       let clip: Clip | null = null;
@@ -620,32 +621,39 @@
       const automationY = clipY + TRACK_HEIGHT;
       const relativeY = y - automationY;
       // Normalize to 0-1 range, inverted (top = 1.0, bottom = 0.0)
-      const normalizedValue = Math.max(
-        0,
-        Math.min(1, 1 - relativeY / AUTOMATION_LANE_HEIGHT)
-      );
-
-      // Constrain relative time to clip duration
-      const relativeTime = Math.max(
-        0,
-        Math.min(clip.duration, newRelativeTime)
-      );
+      const desiredValue = 1 - relativeY / AUTOMATION_LANE_HEIGHT;
 
       // Find the automation curve
       const curve = clip.automation.find(
         (c) => c.parameterName === selectedKeyframe.paramName
       );
 
-      if (curve) {
-        const keyframe = curve.keyframes.find(
-          (kf) => Math.abs(kf.time - selectedKeyframe.time) < 0.01
-        );
+      if (curve && curve.keyframes.length > 0) {
+        try {
+          // Use the keyframe utility to safely move the keyframe with clamping
+          const { time: clampedTime, value: clampedValue } = moveKeyframe(
+            curve.keyframes,
+            selectedKeyframe.time,
+            desiredRelativeTime,
+            desiredValue,
+            {
+              minTime: 0,
+              maxTime: clip.duration,
+              minValue: 0,
+              maxValue: 1,
+              snapGrid: 0.1,
+            }
+          );
 
-        if (keyframe) {
           const timeChanged =
-            Math.abs(relativeTime - selectedKeyframe.time) > 0.01;
+            Math.abs(clampedTime - selectedKeyframe.time) > 0.01;
           const valueChanged =
-            Math.abs(normalizedValue - keyframe.value) > 0.01;
+            Math.abs(
+              clampedValue -
+                curve.keyframes[
+                  findKeyframeIndex(curve.keyframes, selectedKeyframe.time)
+                ]?.value
+            ) > 0.01;
 
           if (timeChanged || valueChanged) {
             // Remove old keyframe and add at new position
@@ -657,16 +665,18 @@
             timelineActions.addKeyframe(
               clip.id,
               selectedKeyframe.paramName,
-              relativeTime,
-              normalizedValue
+              clampedTime,
+              clampedValue
             );
             // Update selected keyframe reference in store
             viewActions.selectKeyframe(
               clip.id,
               selectedKeyframe.paramName,
-              relativeTime
+              clampedTime
             );
           }
+        } catch (error) {
+          console.warn("Error moving keyframe:", error);
         }
       }
       render();

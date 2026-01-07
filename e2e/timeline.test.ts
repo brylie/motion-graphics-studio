@@ -686,4 +686,73 @@ test.describe('Timeline Interactions', () => {
 		const delta2 = state3.time - state2.time;
 		expect(Math.abs(delta1 - delta2)).toBeLessThan(0.3); // Both drags should move ~1 second
 	});
+
+	test('should prevent keyframes from being dragged past each other', async ({ page }) => {
+		// This test ensures keyframes don't overlap and don't disappear when dragged
+		await page.evaluate(() => {
+			const actions = (window as any).__timelineActions;
+			let state = (window as any).__timelineStore?.get?.();
+			let trackId = state?.tracks?.[0]?.id;
+			
+			actions.addClip(trackId, 'test-shader', 0, 10);
+			state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			
+			if (clip) {
+				// Add two keyframes with some space between them
+				actions.addKeyframe(clip.id, 'testParam', 2, 0.3);
+				actions.addKeyframe(clip.id, 'testParam', 8, 0.7);
+			}
+		});
+
+		const canvas = page.locator('canvas.timeline');
+		const pixelsPerSecond = 50;
+		const RULER_HEIGHT = 30;
+		const TRACK_HEIGHT = 60;
+		const AUTOMATION_LANE_HEIGHT = 40;
+		const trackY = RULER_HEIGHT + TRACK_HEIGHT;
+		
+		const canvasBox = await canvas.boundingBox();
+		if (!canvasBox) throw new Error('Canvas not found');
+
+		// Verify both keyframes exist
+		const initialState = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			return {
+				keyframeCount: clip?.automation?.[0]?.keyframes?.length,
+				keyframes: clip?.automation?.[0]?.keyframes
+			};
+		});
+		
+		expect(initialState.keyframeCount).toBe(2);
+
+		// Try to drag left keyframe (at time 2) far to the right past the right keyframe (at time 8)
+		const leftX = canvasBox.x + (2 * pixelsPerSecond);
+		const leftY = canvasBox.y + trackY + (AUTOMATION_LANE_HEIGHT * (1 - 0.3));
+		const farRightX = canvasBox.x + (9.5 * pixelsPerSecond); // Try to move past time 8 to 9.5
+		
+		await page.mouse.move(leftX, leftY);
+		await page.mouse.down();
+		await page.mouse.move(farRightX, leftY, { steps: 10 });
+		await page.mouse.up();
+		await page.waitForTimeout(100);
+
+		// Verify: Both keyframes still exist and left one is clamped before right
+		const afterDrag = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			return {
+				keyframeCount: clip?.automation?.[0]?.keyframes?.length,
+				keyframes: clip?.automation?.[0]?.keyframes?.map((kf: any) => ({ time: kf.time, value: kf.value }))
+			};
+		});
+		
+		expect(afterDrag.keyframeCount).toBe(2); // Both keyframes should still exist
+		expect(afterDrag.keyframes[0].time).toBeGreaterThan(2); // Left moved right
+		expect(afterDrag.keyframes[0].time).toBeLessThan(8); // But clamped before right keyframe
+		expect(afterDrag.keyframes[1].time).toBe(8); // Right keyframe unchanged
+		// Verify minimum gap is maintained (with small tolerance for floating point)
+		expect(afterDrag.keyframes[1].time - afterDrag.keyframes[0].time).toBeGreaterThanOrEqual(0.019);
+	});
 });
