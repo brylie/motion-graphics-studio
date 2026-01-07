@@ -298,24 +298,32 @@
   }
 
   function handleDrop(e: DragEvent) {
+    console.log("[Timeline] Drop event received", e);
     e.preventDefault();
 
-    if (!e.dataTransfer) return;
+    if (!e.dataTransfer) {
+      console.warn("[Timeline] No dataTransfer in drop event");
+      return;
+    }
 
     try {
       let dataStr = e.dataTransfer.getData("application/json");
+      console.log("[Timeline] getData('application/json'):", dataStr);
+
       if (!dataStr) {
         dataStr = e.dataTransfer.getData("text/plain");
+        console.log("[Timeline] getData('text/plain'):", dataStr);
       }
 
       if (!dataStr) {
-        console.warn("No drag data found");
+        console.warn("[Timeline] No drag data found in dataTransfer");
+        console.log("[Timeline] Available types:", e.dataTransfer.types);
         return;
       }
 
       const data = JSON.parse(dataStr);
       console.log(
-        "Drop data:",
+        "[Timeline] Drop data:",
         data,
         "clientY:",
         e.clientY,

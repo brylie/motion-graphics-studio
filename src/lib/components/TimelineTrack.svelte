@@ -113,12 +113,9 @@
     isDragOver = true;
   }
 
-  function handleDrop(e: DragEvent) {
-    e.preventDefault();
+  function handleDragEnd() {
+    // Clean up drag-over state when drag ends
     isDragOver = false;
-
-    // The Timeline component will handle the actual drop logic
-    // This just ensures the track is a valid drop target
   }
 </script>
 
@@ -130,7 +127,7 @@
   on:dragenter={handleDragEnter}
   on:dragleave={handleDragLeave}
   on:dragover={handleDragOver}
-  on:drop={handleDrop}
+  on:dragend={handleDragEnd}
   role="region"
   aria-label="Track {track.name}"
 >
