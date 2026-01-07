@@ -666,7 +666,6 @@
               selectedKeyframe.paramName,
               relativeTime
             );
-            dragStartTime = relativeTime;
           }
         }
       }

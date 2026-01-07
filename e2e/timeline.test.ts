@@ -601,4 +601,89 @@ test.describe('Timeline Interactions', () => {
 		// Value should have increased (closer to 1.0)
 		expect(finalState.value).toBeGreaterThan(initialState.value);
 	});
+
+	test('should maintain cursor tracking during consecutive keyframe drags', async ({ page }) => {
+		// This test ensures the keyframe "sticks" to the cursor and doesn't jump around
+		await page.evaluate(() => {
+			const actions = (window as any).__timelineActions;
+			let state = (window as any).__timelineStore?.get?.();
+			let trackId = state?.tracks?.[0]?.id;
+			
+			actions.addClip(trackId, 'test-shader', 5, 10);
+			state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.startTime === 5);
+			
+			if (clip) {
+				actions.addKeyframe(clip.id, 'testParam', 5, 0.5);
+			}
+		});
+
+		const canvas = page.locator('canvas.timeline');
+		const pixelsPerSecond = 50;
+		const RULER_HEIGHT = 30;
+		const TRACK_HEIGHT = 60;
+		const AUTOMATION_LANE_HEIGHT = 40;
+		const trackY = RULER_HEIGHT + TRACK_HEIGHT;
+		
+		const canvasBox = await canvas.boundingBox();
+		if (!canvasBox) throw new Error('Canvas not found');
+
+		// First drag: move keyframe from time 5 to time 6 (relative times within clip)
+		let state1 = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			const kf = clip?.automation?.[0]?.keyframes?.[0];
+			return { time: kf?.time, clipStart: clip?.startTime };
+		});
+		
+		let startX1 = canvasBox.x + ((state1.clipStart + state1.time) * pixelsPerSecond);
+		let startY1 = canvasBox.y + trackY + (AUTOMATION_LANE_HEIGHT * 0.5);
+		let endX1 = startX1 + (1 * pixelsPerSecond); // +1 second
+		let endY1 = startY1; // same value
+		
+		await page.mouse.move(startX1, startY1);
+		await page.mouse.down();
+		await page.mouse.move(endX1, endY1, { steps: 5 });
+		await page.mouse.up();
+		await page.waitForTimeout(50);
+
+		// Verify first drag worked
+		let state2 = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			const kf = clip?.automation?.[0]?.keyframes?.[0];
+			return { time: kf?.time, value: kf?.value };
+		});
+		
+		expect(state2.time).toBeCloseTo(6, 1); // Should be around time 6
+
+		// Second consecutive drag: move from time 6 to time 7
+		// This catches the bug where dragStartTime was being updated
+		let startX2 = canvasBox.x + ((state1.clipStart + state2.time) * pixelsPerSecond);
+		let startY2 = canvasBox.y + trackY + (AUTOMATION_LANE_HEIGHT * (1 - state2.value));
+		let endX2 = startX2 + (1 * pixelsPerSecond); // +1 second again
+		let endY2 = startY2;
+		
+		await page.mouse.move(startX2, startY2);
+		await page.mouse.down();
+		await page.mouse.move(endX2, endY2, { steps: 5 });
+		await page.mouse.up();
+		await page.waitForTimeout(50);
+
+		// Verify second drag also moved exactly +1 second
+		let state3 = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			const kf = clip?.automation?.[0]?.keyframes?.[0];
+			return { time: kf?.time };
+		});
+		
+		expect(state3.time).toBeCloseTo(7, 1); // Should be around time 7
+		
+		// The key assertion: the delta between drags should be consistent
+		// If cursor tracking is broken, the second drag would move less or jump erratically
+		const delta1 = state2.time - state1.time;
+		const delta2 = state3.time - state2.time;
+		expect(Math.abs(delta1 - delta2)).toBeLessThan(0.3); // Both drags should move ~1 second
+	});
 });
