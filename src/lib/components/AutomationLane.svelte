@@ -7,7 +7,7 @@
   export let clipDuration: number;
   export let pixelsPerSecond: number;
   export let laneHeight: number = 40;
-  export let keyframeSize: number = 8;
+  export let keyframeSize: number = 5;
   export let selectedKeyframeTime: number | null = null;
   export let readonly: boolean = false;
 
@@ -29,12 +29,13 @@
 
   // Convert keyframe time to X coordinate
   function timeToX(time: number): number {
-    return time * pixelsPerSecond;
+    const x = time * pixelsPerSecond;
+    return x;
   }
 
   // Convert keyframe value (0-1) to Y coordinate (inverted, 0 at top)
   function valueToY(value: number): number {
-    const padding = 4;
+    const padding = 8;
     return padding + (1 - value) * (height - padding * 2);
   }
 
@@ -45,7 +46,7 @@
 
   // Convert Y coordinate to value
   function yToValue(y: number): number {
-    const padding = 4;
+    const padding = 8;
     const normalizedY = (y - padding) / (height - padding * 2);
     return Math.max(0, Math.min(1, 1 - normalizedY));
   }
@@ -277,31 +278,17 @@
     cursor: grab;
   }
 
-  .keyframe-hitarea:hover + .keyframe {
-    fill: #93c5fd;
-    r: 10;
-  }
-
   .keyframe {
     fill: #60a5fa;
     stroke: #1e3a8a;
     stroke-width: 2;
     cursor: grab;
-    transition:
-      fill 0.15s ease,
-      r 0.15s ease;
-  }
-
-  .keyframe:hover {
-    fill: #93c5fd;
-    r: 10;
   }
 
   .keyframe.selected {
     fill: #3b82f6;
     stroke: #1e40af;
     stroke-width: 3;
-    r: 10;
   }
 
   .keyframe.readonly {

@@ -71,42 +71,48 @@
   }
 </script>
 
-<div
-  bind:this={rulerElement}
-  class="timeline-ruler"
-  style="height: {RULER_HEIGHT}px; width: {totalWidth}px;"
-  on:mousedown={handleMouseDown}
-  on:mousemove={handleMouseMove}
-  on:mouseup={handleMouseUp}
-  on:mouseleave={handleMouseUp}
-  role="slider"
-  tabindex="0"
-  aria-label="Timeline scrubber"
-  aria-valuemin="0"
-  aria-valuemax={duration}
-  aria-valuenow={$playback.currentTime}
->
-  <!-- Background with grid lines -->
-  <div class="ruler-background">
-    {#each markers as marker (marker.time)}
-      <div class="time-marker" style="left: {marker.time * pixelsPerSecond}px;">
-        <div class="tick-line major"></div>
-        <span class="time-label">{marker.label}</span>
-      </div>
-    {/each}
+<div class="timeline-ruler" style="height: {RULER_HEIGHT}px;">
+  <!-- Empty label space to match track labels -->
+  <div class="ruler-label"></div>
 
-    <!-- Minor tick marks (between major markers) -->
-    {#each Array(Math.ceil(duration / (markerInterval / 4))) as _, i}
-      {@const time = i * (markerInterval / 4)}
-      {#if time % markerInterval !== 0 && time <= duration}
-        <div
-          class="time-marker minor"
-          style="left: {time * pixelsPerSecond}px;"
-        >
-          <div class="tick-line minor"></div>
+  <!-- Ruler content area aligned with track content -->
+  <div
+    bind:this={rulerElement}
+    class="ruler-content"
+    style="width: {totalWidth}px;"
+    on:mousedown={handleMouseDown}
+    on:mousemove={handleMouseMove}
+    on:mouseup={handleMouseUp}
+    on:mouseleave={handleMouseUp}
+    role="slider"
+    tabindex="0"
+    aria-label="Timeline scrubber"
+    aria-valuemin="0"
+    aria-valuemax={duration}
+    aria-valuenow={$playback.currentTime}
+  >
+    <!-- Background with grid lines -->
+    <div class="ruler-background">
+      {#each markers as marker (marker.time)}
+        <div class="time-marker" style="left: {marker.time * pixelsPerSecond}px;">
+          <div class="tick-line major"></div>
+          <span class="time-label">{marker.label}</span>
         </div>
-      {/if}
-    {/each}
+      {/each}
+
+      <!-- Minor tick marks (between major markers) -->
+      {#each Array(Math.ceil(duration / (markerInterval / 4))) as _, i}
+        {@const time = i * (markerInterval / 4)}
+        {#if time % markerInterval !== 0 && time <= duration}
+          <div
+            class="time-marker minor"
+            style="left: {time * pixelsPerSecond}px;"
+          >
+            <div class="tick-line minor"></div>
+          </div>
+        {/if}
+      {/each}
+    </div>
   </div>
 </div>
 
@@ -119,10 +125,21 @@
     background: #1f2937;
     border-bottom: 2px solid #374151;
     user-select: none;
+    display: grid;
+    grid-template-columns: 80px 1fr;
+  }
+
+  .ruler-label {
+    background: #1f2937;
+    border-right: 1px solid #374151;
+  }
+
+  .ruler-content {
+    position: relative;
     cursor: pointer;
   }
 
-  .timeline-ruler:active {
+  .ruler-content:active {
     cursor: grabbing;
   }
 

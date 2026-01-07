@@ -45,27 +45,13 @@
         }
       }
     }
-    const result = Array.from(params);
-    console.log(
-      `Track ${track.id} automation params:`,
-      result,
-      "clips:",
-      track.clips.length
-    );
-    return result;
+    return Array.from(params);
   })();
 
   // Calculate automation lane count for this track
   $: automationCount = allAutomationParams.length;
 
   $: trackHeight = TRACK_HEIGHT + automationCount * AUTOMATION_LANE_HEIGHT;
-
-  $: console.log(
-    `Track ${track.id} height:`,
-    trackHeight,
-    "automationCount:",
-    automationCount
-  );
 
   function handleToggleMute() {
     timelineActions.toggleMute(track.id);
@@ -117,31 +103,34 @@
   style="min-height: {trackHeight}px;"
   data-track-id={track.id}
 >
-  <div class="track-content">
-    <!-- Sticky track label on the left -->
-    <div class="track-label">
-      <div class="track-name">{track.name}</div>
-      <div class="track-controls">
-        <button
-          class="control-btn"
-          class:active={track.muted}
-          on:click={handleToggleMute}
-          aria-label={track.muted ? "Unmute track" : "Mute track"}
-          title={track.muted ? "Unmute" : "Mute"}
-        >
-          M
-        </button>
-        <button
-          class="control-btn"
-          class:active={track.solo}
-          on:click={handleToggleSolo}
-          aria-label={track.solo ? "Unsolo track" : "Solo track"}
-          title={track.solo ? "Unsolo" : "Solo"}
-        >
-          S
-        </button>
-      </div>
+  <!-- Track label column -->
+  <div class="track-label">
+    <div class="track-name">{track.name}</div>
+    <div class="track-controls">
+      <button
+        class="control-btn"
+        class:active={track.muted}
+        on:click={handleToggleMute}
+        aria-label={track.muted ? "Unmute track" : "Mute track"}
+        title={track.muted ? "Unmute" : "Mute"}
+      >
+        M
+      </button>
+      <button
+        class="control-btn"
+        class:active={track.solo}
+        on:click={handleToggleSolo}
+        aria-label={track.solo ? "Unsolo track" : "Solo track"}
+        title={track.solo ? "Unsolo" : "Solo"}
+      >
+        S
+      </button>
     </div>
+  </div>
+
+  <!-- Timeline content area -->
+  <div class="track-content">
+    <!-- Clips -->
     <div class="clips-container" style="height: {TRACK_HEIGHT}px;">
       {#each track.clips as clip (clip.id)}
         <TimelineClip
@@ -158,7 +147,6 @@
     <!-- Automation lanes -->
     {#if automationCount > 0}
       <div class="automation-lanes">
-        <!-- Group all automation curves by parameter name across all clips -->
         {#each allAutomationParams as paramName}
           <div
             class="automation-lane-row"
@@ -207,14 +195,14 @@
 
 <style>
   .timeline-track {
-    position: relative;
+    display: grid;
+    grid-template-columns: 80px 1fr;
     border-bottom: 1px solid #374151;
     background: #111827;
+    position: relative;
   }
 
   .track-label {
-    position: sticky;
-    left: 0;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -222,9 +210,8 @@
     background: #1f2937;
     border-right: 1px solid #374151;
     z-index: 10;
-    width: 80px;
-    flex-shrink: 0;
-    align-self: flex-start;
+    position: sticky;
+    left: 0;
   }
 
   .track-name {
@@ -264,26 +251,25 @@
   }
 
   .track-content {
-    display: flex;
-    flex-direction: row;
     position: relative;
     min-height: 100%;
+    overflow: hidden;
   }
 
   .clips-container {
     position: absolute;
-    left: 80px;
+    left: 0;
     right: 0;
     top: 0;
-    width: calc(100% - 80px);
+    width: 100%;
   }
 
   .automation-lanes {
     position: absolute;
-    left: 80px;
+    left: 0;
     right: 0;
     top: 36px;
-    width: calc(100% - 80px);
+    width: 100%;
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -296,7 +282,7 @@
   }
 
   .automation-lane-wrapper {
-    position: absolute;
+    position: absolute !important;
     top: 0;
     pointer-events: auto;
     height: 100%;

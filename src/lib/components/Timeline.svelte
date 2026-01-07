@@ -24,8 +24,9 @@
     [];
   let altKeyPressed = false;
 
+  const LABEL_WIDTH = 80; // Must match TimelineTrack and TimelineRuler label column width
   $: totalWidth = $timeline.duration * $timelineView.pixelsPerSecond;
-  $: playheadPosition = $playback.currentTime * $timelineView.pixelsPerSecond;
+  $: playheadPosition = LABEL_WIDTH + ($playback.currentTime * $timelineView.pixelsPerSecond);
 
   function snapTime(time: number, gridSize: number = 0.1): number {
     return Math.round(time / gridSize) * gridSize;
