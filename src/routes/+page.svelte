@@ -4,11 +4,26 @@
   import ShaderLibrary from "$lib/components/ShaderLibrary.svelte";
   import Preview from "$lib/components/Preview.svelte";
   import ParameterPanel from "$lib/components/ParameterPanel.svelte";
-  import { timelineActions, timelineView } from "$lib/stores/timeline";
+  import {
+    timeline,
+    timelineActions,
+    timelineView,
+  } from "$lib/stores/timeline";
   import { playback, playbackActions } from "$lib/stores/playback";
   import { onMount } from "svelte";
+  import { get } from "svelte/store";
 
   onMount(() => {
+    // Expose stores for e2e testing
+    if (typeof window !== "undefined") {
+      (window as any).__timelineStore = {
+        get: () => get(timeline),
+        subscribe: timeline.subscribe,
+      };
+      (window as any).__timelineActions = timelineActions;
+      (window as any).__playback = playback;
+    }
+
     // Add a few initial tracks
     timelineActions.addTrack();
     timelineActions.addTrack();

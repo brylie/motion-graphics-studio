@@ -998,6 +998,7 @@
 
 <div class="timeline-container">
   <canvas
+    class="timeline"
     bind:this={canvas}
     on:mousedown={handleMouseDown}
     on:mousemove={handleMouseMove}
