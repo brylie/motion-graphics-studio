@@ -16,7 +16,6 @@
 
   const dispatch = createEventDispatcher<{
     clipselect: { clipId: string };
-    clipdragstart: { clipId: string; startX: number };
     clipresizestart: {
       clipId: string;
       handle: "left" | "right";
@@ -32,7 +31,7 @@
     };
   }>();
 
-  const TRACK_HEIGHT = 36;
+  const TRACK_HEIGHT = 28;
   const AUTOMATION_LANE_HEIGHT = 50;
 
   // Get all unique automation parameter names across all clips - make it reactive
@@ -63,12 +62,6 @@
 
   function handleClipSelect(e: CustomEvent<{ clipId: string }>) {
     dispatch("clipselect", e.detail);
-  }
-
-  function handleClipDragStart(
-    e: CustomEvent<{ clipId: string; startX: number }>
-  ) {
-    dispatch("clipdragstart", e.detail);
   }
 
   function handleClipResizeStart(
@@ -138,7 +131,6 @@
           {pixelsPerSecond}
           isSelected={selectedClipId === clip.id}
           on:select={handleClipSelect}
-          on:dragstart={handleClipDragStart}
           on:resizestart={handleClipResizeStart}
         />
       {/each}

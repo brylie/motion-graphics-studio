@@ -12,7 +12,6 @@
   import type { Clip } from "$lib/timeline/types";
 
   let timelineContainer: HTMLDivElement;
-  let isDragging = false;
   let isResizing = false;
   let resizeHandle: "left" | "right" | null = null;
   let dragStartX = 0;
@@ -47,26 +46,6 @@
 
   function handleClipSelect(e: CustomEvent<{ clipId: string }>) {
     viewActions.selectClip(e.detail.clipId);
-  }
-
-  function handleClipDragStart(
-    e: CustomEvent<{ clipId: string; startX: number }>
-  ) {
-    isDragging = true;
-    draggedClipId = e.detail.clipId;
-    dragStartX = e.detail.startX;
-
-    // Find clip
-    for (const track of $timeline.tracks) {
-      const clip = track.clips.find((c) => c.id === e.detail.clipId);
-      if (clip) {
-        dragStartTime = clip.startTime;
-        break;
-      }
-    }
-
-    window.addEventListener("mousemove", handleWindowMouseMove);
-    window.addEventListener("mouseup", handleWindowMouseUp);
   }
 
   function handleClipResizeStart(
@@ -109,14 +88,6 @@
 
   function handleWindowMouseMove(e: MouseEvent) {
     altKeyPressed = e.altKey;
-
-    if (isDragging && draggedClipId) {
-      const deltaX = e.clientX - dragStartX;
-      const scrollLeft = timelineContainer?.scrollLeft || 0;
-      const deltaTime = deltaX / $timelineView.pixelsPerSecond;
-      const newTime = snapTime(Math.max(0, dragStartTime + deltaTime));
-      timelineActions.updateClipTime(draggedClipId, newTime);
-    }
 
     if (isResizing && draggedClipId && resizeHandle) {
       const rect = timelineContainer.getBoundingClientRect();
@@ -183,7 +154,6 @@
   }
 
   function handleWindowMouseUp() {
-    isDragging = false;
     isResizing = false;
     resizeHandle = null;
     draggedClipId = null;
@@ -275,7 +245,13 @@
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
     if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = "copy";
+      // Check if it's a clip being dragged
+      const types = Array.from(e.dataTransfer.types);
+      if (types.includes("application/json")) {
+        e.dataTransfer.dropEffect = "move";
+      } else {
+        e.dataTransfer.dropEffect = "copy";
+      }
     }
   }
 
@@ -302,9 +278,13 @@
         dataStr = e.dataTransfer.getData("text/plain");
       }
 
-      if (!dataStr) return;
+      if (!dataStr) {
+        console.warn("No drag data found");
+        return;
+      }
 
       const data = JSON.parse(dataStr);
+      console.log("Drop data:", data);
 
       if (data.type === "shader" && data.shaderId) {
         // Detect which track the drop occurred on
@@ -421,7 +401,6 @@
           selectedClipId={$timelineView.selectedClipId}
           selectedKeyframe={$timelineView.selectedKeyframe}
           on:clipselect={handleClipSelect}
-          on:clipdragstart={handleClipDragStart}
           on:clipresizestart={handleClipResizeStart}
           on:keyframeselect={handleKeyframeSelect}
           on:keyframemove={handleKeyframeMove}

@@ -9,16 +9,16 @@
 
   const dispatch = createEventDispatcher<{
     select: { clipId: string };
-    dragstart: { clipId: string; startX: number };
     resizestart: { clipId: string; handle: "left" | "right"; startX: number };
   }>();
 
-  let isDragging = false;
   let isResizingLeft = false;
   let isResizingRight = false;
+  let clipElement: HTMLDivElement;
 
   $: left = clip.startTime * pixelsPerSecond;
   $: width = clip.duration * pixelsPerSecond;
+  $: isDraggable = !isResizingLeft && !isResizingRight;
 
   function handleClipClick(e: MouseEvent) {
     if (isResizingLeft || isResizingRight) return;
@@ -26,15 +26,11 @@
     dispatch("select", { clipId: clip.id });
   }
 
-  function handleClipMouseDown(e: MouseEvent) {
-    if (isResizingLeft || isResizingRight) return;
-    e.stopPropagation();
-    isDragging = true;
-    dispatch("dragstart", { clipId: clip.id, startX: e.clientX });
-  }
-
   function handleDragStart(e: DragEvent) {
     if (!e.dataTransfer) return;
+
+    // Select the clip when starting to drag
+    dispatch("select", { clipId: clip.id });
 
     // Set drag data
     e.dataTransfer.effectAllowed = "move";
@@ -43,9 +39,17 @@
       clipId: clip.id
     }));
 
-    // Create drag image
-    if (e.target instanceof HTMLElement) {
-      e.dataTransfer.setDragImage(e.target, 0, 0);
+    // Create a compact drag image matching clip height
+    if (clipElement) {
+      const dragImage = clipElement.cloneNode(true) as HTMLElement;
+      dragImage.style.opacity = "0.5";
+      dragImage.style.position = "absolute";
+      dragImage.style.top = "-1000px";
+      dragImage.style.height = clipElement.offsetHeight + "px";
+      document.body.appendChild(dragImage);
+      e.dataTransfer.setDragImage(dragImage, e.offsetX, clipElement.offsetHeight / 2);
+      // Clean up after drag starts
+      setTimeout(() => document.body.removeChild(dragImage), 0);
     }
   }
 
@@ -85,13 +89,13 @@
 </script>
 
 <div
+  bind:this={clipElement}
   class="timeline-clip"
   class:selected={isSelected}
   data-clip-id={clip.id}
   style="left: {left}px; width: {width}px;"
-  draggable="true"
+  draggable={isDraggable}
   on:click={handleClipClick}
-  on:mousedown={handleClipMouseDown}
   on:dragstart={handleDragStart}
   on:keydown={(e) => e.key === "Enter" && handleClipClick(e as any)}
   role="button"
@@ -124,16 +128,16 @@
 <style>
   .timeline-clip {
     position: absolute;
-    top: 0;
-    height: 100%;
+    top: 2px;
+    height: calc(100% - 4px);
     background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-    border: 2px solid #4a5568;
-    border-radius: 4px;
+    border: 1px solid #4a5568;
+    border-radius: 3px;
     cursor: grab;
     user-select: none;
     display: flex;
     align-items: center;
-    padding: 0 8px;
+    padding: 0 6px;
     transition: border-color 0.15s ease;
     min-width: 20px;
     overflow: hidden;
@@ -158,9 +162,9 @@
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    gap: 6px;
+    gap: 4px;
     color: white;
-    font-size: 11px;
+    font-size: 10px;
     pointer-events: none;
   }
 
@@ -174,7 +178,7 @@
   .clip-duration {
     color: #a0aec0;
     white-space: nowrap;
-    font-size: 10px;
+    font-size: 9px;
   }
 
   .resize-handle {

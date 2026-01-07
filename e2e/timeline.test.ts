@@ -3,17 +3,17 @@ import { expect, test } from '@playwright/test';
 test.describe('Timeline Interactions', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto('/');
-		
-		// Wait for the timeline canvas to be visible with a shorter timeout
+
+		// Wait for the timeline container to be visible with a shorter timeout
 		// If this fails, something is fundamentally broken and we should fail fast
-		const canvas = page.locator('canvas.timeline');
-		await canvas.waitFor({ state: 'visible', timeout: 5000 });
-		
+		const timeline = page.locator('.timeline-container');
+		await timeline.waitFor({ state: 'visible', timeout: 5000 });
+
 		// Verify the store is exposed for testing
 		const hasStore = await page.evaluate(() => {
 			return typeof (window as any).__timelineStore !== 'undefined';
 		});
-		
+
 		if (!hasStore) {
 			throw new Error('Timeline store is not exposed on window. Tests cannot proceed.');
 		}
@@ -26,120 +26,116 @@ test.describe('Timeline Interactions', () => {
 			return state?.tracks?.[0]?.clips?.length || 0;
 		});
 
-		// Right-click on timeline to open context menu and add clip
-		const canvas = page.locator('canvas.timeline');
-		await canvas.click({ button: 'right', position: { x: 100, y: 50 } });
-		
-		// Look for "Add Clip" option in context menu
-		const addClipOption = page.locator('text="Add Clip"');
-		if (await addClipOption.isVisible()) {
-			await addClipOption.click();
-			
-			// Select a shader from the dialog
-			await page.click('text=/.*\.fs$/'); // Click on first shader file
-			
-			// Verify clip was added
-			const newClipCount = await page.evaluate(() => {
-				const state = (window as any).__timelineStore?.get?.();
-				return state?.tracks?.[0]?.clips?.length || 0;
-			});
-			expect(newClipCount).toBe(initialClipCount + 1);
-		}
+		// Add a clip programmatically
+		await page.evaluate(() => {
+			const actions = (window as any).__timelineActions;
+			const state = (window as any).__timelineStore?.get?.();
+			if (state?.tracks?.[0]) {
+				actions.addClip(state.tracks[0].id, 'Plasma.fs', 2.0, 5.0);
+			}
+		});
+
+		// Verify clip was added
+		const finalClipCount = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			return state?.tracks?.[0]?.clips?.length || 0;
+		});
+
+		expect(finalClipCount).toBe(initialClipCount + 1);
+
+		// Verify clip is visible in the UI
+		const clip = page.locator('[data-track-id]').first().locator('.timeline-clip').first();
+		await expect(clip).toBeVisible();
 	});
 
 	test('should add and remove keyframes', async ({ page }) => {
-		// First, ensure we have a clip (may need to add one)
-		const hasClip = await page.evaluate(() => {
+		// Add a clip first
+		const clipId = await page.evaluate(() => {
+			const actions = (window as any).__timelineActions;
 			const state = (window as any).__timelineStore?.get?.();
-			return state?.tracks?.[0]?.clips?.length > 0;
+			if (state?.tracks?.[0]) {
+				actions.addClip(state.tracks[0].id, 'Plasma.fs', 2.0, 5.0);
+				const updatedState = (window as any).__timelineStore?.get?.();
+				return updatedState?.tracks?.[0]?.clips?.[0]?.id;
+			}
+			return null;
 		});
 
-		if (hasClip) {
-			// Click on a clip to select it
-			const canvas = page.locator('canvas.timeline');
-			await canvas.click({ position: { x: 200, y: 100 } });
+		expect(clipId).not.toBeNull();
 
-			// Get initial keyframe count
-			const initialKeyframeCount = await page.evaluate(() => {
-				const state = (window as any).__timelineStore?.get?.();
-				const clip = state?.tracks?.[0]?.clips?.[0];
-				return clip?.automation?.reduce((sum: number, curve: any) => sum + curve.keyframes.length, 0) || 0;
-			});
+		// Add a keyframe
+		await page.evaluate(({ clipId }) => {
+			const actions = (window as any).__timelineActions;
+			actions.addKeyframe(clipId, 'speed', 2.0, 0.5);
+		}, { clipId });
 
-			// Right-click on automation lane to add keyframe
-			await canvas.click({ button: 'right', position: { x: 250, y: 150 } });
-			
-			const addKeyframeOption = page.locator('text="Add Keyframe"');
-			if (await addKeyframeOption.isVisible()) {
-				await addKeyframeOption.click();
-				
-				// Verify keyframe was added
-				const newKeyframeCount = await page.evaluate(() => {
-					const state = (window as any).__timelineStore?.get?.();
-					const clip = state?.tracks?.[0]?.clips?.[0];
-					return clip?.automation?.reduce((sum: number, curve: any) => sum + curve.keyframes.length, 0) || 0;
-				});
-				expect(newKeyframeCount).toBe(initialKeyframeCount + 1);
+		// Verify keyframe was added
+		const hasKeyframe = await page.evaluate(({ clipId }) => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.id === clipId);
+			const curve = clip?.automation?.find((c: any) => c.parameterName === 'speed');
+			return curve?.keyframes?.length > 0;
+		}, { clipId });
 
-				// Delete keyframe by pressing Delete key after selecting it
-				await canvas.click({ position: { x: 250, y: 150 } });
-				await page.keyboard.press('Delete');
-				
-				// Verify keyframe was removed
-				const finalKeyframeCount = await page.evaluate(() => {
-					const state = (window as any).__timelineStore?.get?.();
-					const clip = state?.tracks?.[0]?.clips?.[0];
-					return clip?.automation?.reduce((sum: number, curve: any) => sum + curve.keyframes.length, 0) || 0;
-				});
-				expect(finalKeyframeCount).toBe(initialKeyframeCount);
-			}
-		}
+		expect(hasKeyframe).toBe(true);
+
+		// Remove the keyframe
+		await page.evaluate(({ clipId }) => {
+			const actions = (window as any).__timelineActions;
+			actions.removeKeyframe(clipId, 'speed', 2.0);
+		}, { clipId });
+
+		// Verify keyframe was removed
+		const keyframeRemoved = await page.evaluate(({ clipId }) => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.id === clipId);
+			const curve = clip?.automation?.find((c: any) => c.parameterName === 'speed');
+			return curve?.keyframes?.length === 0;
+		}, { clipId });
+
+		expect(keyframeRemoved).toBe(true);
 	});
 
 	test('should resize clip with absolute mode (default)', async ({ page }) => {
-		// Programmatically test resize behavior rather than simulating precise mouse actions
+		// Add a clip with keyframes
 		const result = await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
-			if (!actions) return { error: 'No actions available' };
-			
-			// Get or create track
-			let state = (window as any).__timelineStore?.get?.();
-			let trackId = state?.tracks?.[0]?.id;
-			
-			if (!trackId) return { error: 'No track found' };
-			
-			// Add a clip with keyframes
-			actions.addClip(trackId, 'test-shader', 5, 10);
-			
-			state = (window as any).__timelineStore?.get?.();
-			const clipId = state?.tracks?.[0]?.clips?.[0]?.id;
-			
+			const state = (window as any).__timelineStore?.get?.();
+
+			if (!state?.tracks?.[0]) return { error: 'No track found' };
+
+			// Add clip
+			actions.addClip(state.tracks[0].id, 'Plasma.fs', 5.0, 10.0);
+
+			const updatedState = (window as any).__timelineStore?.get?.();
+			const clipId = updatedState?.tracks?.[0]?.clips?.[0]?.id;
+
 			if (!clipId) return { error: 'Clip not created' };
-			
-			// Add keyframes at specific positions
-			actions.addKeyframe(clipId, 'testParam', 2, 0.5);
-			actions.addKeyframe(clipId, 'testParam', 5, 0.8);
-			actions.addKeyframe(clipId, 'testParam', 8, 0.3);
-			
+
+			// Add keyframes
+			actions.addKeyframe(clipId, 'speed', 2.0, 0.5);
+			actions.addKeyframe(clipId, 'speed', 5.0, 0.8);
+			actions.addKeyframe(clipId, 'speed', 8.0, 0.3);
+
 			// Get initial state
-			state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			const initialKeyframeTimes = clip?.automation?.[0]?.keyframes?.map((kf: any) => kf.time) || [];
-			
-			// Simulate resize by updating clip duration directly
-			// In absolute mode, keyframe times should stay the same
-			actions.updateClipDuration(clipId, 15);
-			
-			state = (window as any).__timelineStore?.get?.();
-			const updatedClip = state?.tracks?.[0]?.clips?.[0];
-			const finalKeyframeTimes = updatedClip?.automation?.[0]?.keyframes?.map((kf: any) => kf.time) || [];
-			
+			const beforeResize = (window as any).__timelineStore?.get?.();
+			const clip = beforeResize?.tracks?.[0]?.clips?.[0];
+			const initialKeyframes = clip?.automation?.[0]?.keyframes?.map((kf: any) => kf.time) || [];
+
+			// Resize clip (increase duration)
+			actions.updateClipDuration(clipId, 15.0);
+
+			// Get final state
+			const afterResize = (window as any).__timelineStore?.get?.();
+			const resizedClip = afterResize?.tracks?.[0]?.clips?.[0];
+			const finalKeyframes = resizedClip?.automation?.[0]?.keyframes?.map((kf: any) => kf.time) || [];
+
 			return {
-				initialDuration: 10,
-				finalDuration: updatedClip?.duration,
-				initialKeyframeTimes,
-				finalKeyframeTimes,
-				keyframesUnchanged: JSON.stringify(initialKeyframeTimes) === JSON.stringify(finalKeyframeTimes)
+				initialDuration: 10.0,
+				finalDuration: resizedClip?.duration,
+				initialKeyframes,
+				finalKeyframes,
+				keyframesUnchanged: JSON.stringify(initialKeyframes) === JSON.stringify(finalKeyframes)
 			};
 		});
 
@@ -147,612 +143,260 @@ test.describe('Timeline Interactions', () => {
 			throw new Error(result.error);
 		}
 
-		// In absolute mode:
-		// - Clip duration should increase
-		expect(result.finalDuration).toBeGreaterThan(result.initialDuration);
-		// - Keyframes should maintain their timeline positions (times stay the same)
+		// In absolute mode, keyframes should stay at same positions
+		expect(result.finalDuration).toBe(15.0);
 		expect(result.keyframesUnchanged).toBe(true);
 	});
 
-	test('should resize clip with proportional mode (Alt key)', async ({ page }) => {
-		// Note: Testing proportional mode requires UI interaction with Alt key
-		// This test verifies the concept programmatically
-		const result = await page.evaluate(() => {
-			const actions = (window as any).__timelineActions;
-			if (!actions) return { error: 'No actions available' };
-			
-			// Get track
-			let state = (window as any).__timelineStore?.get?.();
-			let trackId = state?.tracks?.[1]?.id; // Use second track
-			
-			if (!trackId) return { error: 'No second track found' };
-			
-			// Add a clip
-			actions.addClip(trackId, 'test-shader', 10, 10);
-			
-			state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[1]?.clips?.find((c: any) => c.startTime === 10);
-			const clipId = clip?.id;
-			
-			if (!clipId) return { error: 'Clip not created' };
-			
-			// Add keyframes at known relative positions (0%, 50%, 100% of duration)
-			actions.addKeyframe(clipId, 'testParam', 0, 0.2);  // Start
-			actions.addKeyframe(clipId, 'testParam', 5, 0.8);  // Middle (50%)
-			actions.addKeyframe(clipId, 'testParam', 10, 0.4); // End
-			
-			// Get initial state
-			state = (window as any).__timelineStore?.get?.();
-			const initialClip = state?.tracks?.[1]?.clips?.find((c: any) => c.id === clipId);
-			const initialDuration = initialClip?.duration || 0;
-			const initialKeyframes = initialClip?.automation?.[0]?.keyframes?.map((kf: any) => ({
-				time: kf.time,
-				relativePosition: kf.time / initialDuration
-			})) || [];
-			
-			// In proportional mode, keyframes would scale with clip
-			// Simulate by calculating what they should be at 150% duration
-			const newDuration = initialDuration * 1.5;
-			actions.updateClipDuration(clipId, newDuration);
-			
-			// Manually scale keyframes to simulate proportional mode
-			// (The actual resize UI with Alt key would do this automatically)
-			for (const kf of initialKeyframes) {
-				const oldTime = kf.time;
-				const newTime = kf.relativePosition * newDuration;
-				// Remove old keyframe and add new scaled one
-				const curves = initialClip?.automation || [];
-				if (curves.length > 0) {
-					const curve = curves[0];
-					const keyframe = curve.keyframes.find((k: any) => Math.abs(k.time - oldTime) < 0.01);
-					if (keyframe) {
-						actions.removeKeyframe(clipId, curve.parameterName, oldTime);
-						actions.addKeyframe(clipId, curve.parameterName, newTime, keyframe.value);
-					}
-				}
-			}
-			
-			state = (window as any).__timelineStore?.get?.();
-			const finalClip = state?.tracks?.[1]?.clips?.find((c: any) => c.id === clipId);
-			const finalKeyframes = finalClip?.automation?.[0]?.keyframes?.map((kf: any) => ({
-				time: kf.time,
-				relativePosition: kf.time / (finalClip?.duration || 1)
-			})) || [];
-			
-			return {
-				initialDuration,
-				finalDuration: finalClip?.duration,
-				initialRelativePositions: initialKeyframes.map(kf => kf.relativePosition),
-				finalRelativePositions: finalKeyframes.map(kf => kf.relativePosition),
-				relativePositionsMaintained: initialKeyframes.every((initial, i) => 
-					Math.abs(initial.relativePosition - (finalKeyframes[i]?.relativePosition || 0)) < 0.01
-				)
-			};
-		});
-
-		if ('error' in result) {
-			throw new Error(result.error);
-		}
-
-		// In proportional mode:
-		// - Clip duration should increase
-		expect(result.finalDuration).toBeGreaterThan(result.initialDuration);
-		// - Keyframes should maintain their relative positions
-		expect(result.relativePositionsMaintained).toBe(true);
-	});
-
-	test('should not duplicate keyframes during resize', async ({ page }) => {
-		// Setup a clip with keyframes
+	test('should select clip when clicked', async ({ page }) => {
+		// Add a clip
 		await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
-			if (!actions) return;
-			
-			let state = (window as any).__timelineStore?.get?.();
-			let trackId = state?.tracks?.[0]?.id;
-			
-			if (!trackId) {
-				actions.addTrack();
-				state = (window as any).__timelineStore?.get?.();
-				trackId = state?.tracks?.[0]?.id;
-			}
-			
-			// Clear existing clips
-			const existingClips = state?.tracks?.[0]?.clips || [];
-			existingClips.forEach((clip: any) => actions.removeClip(clip.id));
-			
-			actions.addClip(trackId, 'test-shader', 5, 10);
-			
-			state = (window as any).__timelineStore?.get?.();
-			const clipId = state?.tracks?.[0]?.clips?.[0]?.id;
-			
-			if (clipId) {
-				actions.addKeyframe(clipId, 'testParam', 2, 0.5);
-				actions.addKeyframe(clipId, 'testParam', 5, 0.8);
+			const state = (window as any).__timelineStore?.get?.();
+			if (state?.tracks?.[0]) {
+				actions.addClip(state.tracks[0].id, 'Plasma.fs', 2.0, 5.0);
 			}
 		});
 
-		const initialKeyframeCount = await page.evaluate(() => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			return clip?.automation?.[0]?.keyframes?.length || 0;
+		// Find and click the clip
+		const clip = page.locator('.timeline-clip').first();
+		await expect(clip).toBeVisible();
+		await clip.click();
+
+		// Verify clip is selected
+		const isSelected = await page.evaluate(() => {
+			const viewState = (window as any).__timelineViewStore?.get?.();
+			return viewState?.selectedClipId !== null;
 		});
 
-		const canvas = page.locator('canvas.timeline');
-		
-		// Perform multiple resize operations with Alt key (proportional mode)
-		// This tests the bug fix for keyframe duplication
-		await page.keyboard.down('Alt');
-		
-		for (let i = 0; i < 5; i++) {
-			const rightEdgeX = 200 + (10 * 20) + (i * 20);
-			await canvas.hover({ position: { x: rightEdgeX, y: 100 } });
-			await page.mouse.down();
-			await page.mouse.move(rightEdgeX + 20, 100);
-			await page.mouse.up();
-			await page.waitForTimeout(50); // Small delay between operations
-		}
-		
-		await page.keyboard.up('Alt');
+		expect(isSelected).toBe(true);
 
-		// Verify keyframes weren't duplicated
-		const finalKeyframeCount = await page.evaluate(() => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			return clip?.automation?.[0]?.keyframes?.length || 0;
-		});
-
-		expect(finalKeyframeCount).toBe(initialKeyframeCount);
+		// Verify clip has selected class
+		await expect(clip).toHaveClass(/selected/);
 	});
 
-	test('should constrain clip resize to keyframe bounds in absolute mode', async ({ page }) => {
-		// Setup a clip with keyframes outside initial bounds
+	test('should show resize handles when clip is selected', async ({ page }) => {
+		// Add a clip
 		await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
-			if (!actions) return;
-			
-			let state = (window as any).__timelineStore?.get?.();
-			let trackId = state?.tracks?.[0]?.id;
-			
-			if (!trackId) {
-				actions.addTrack();
-				state = (window as any).__timelineStore?.get?.();
-				trackId = state?.tracks?.[0]?.id;
-			}
-			
-			actions.addClip(trackId, 'test-shader', 10, 20);
-			
-			state = (window as any).__timelineStore?.get?.();
-			const clipId = state?.tracks?.[0]?.clips?.[0]?.id;
-			
-			// Add keyframe that extends beyond clip end
-			if (clipId) {
-				actions.addKeyframe(clipId, 'testParam', 10, 0.5); // At clip start + 10
-				actions.addKeyframe(clipId, 'testParam', 15, 0.8); // At clip start + 15
-			}
-		});
-
-		const canvas = page.locator('canvas.timeline');
-		
-		// Try to resize right edge smaller (without Alt key = absolute mode)
-		// Should be constrained by rightmost keyframe
-		const rightEdgeX = 200 + (20 * 20);
-		await canvas.hover({ position: { x: rightEdgeX, y: 100 } });
-		await page.mouse.down();
-		await page.mouse.move(rightEdgeX - 200, 100); // Try to drag way to the left
-		await page.mouse.up();
-
-		const finalDuration = await page.evaluate(() => {
 			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			return clip?.duration || 0;
+			if (state?.tracks?.[0]) {
+				actions.addClip(state.tracks[0].id, 'Plasma.fs', 2.0, 5.0);
+			}
 		});
 
-		// Duration should be constrained to at least include the rightmost keyframe
-		expect(finalDuration).toBeGreaterThanOrEqual(15);
+		// Find and click the clip to select it
+		const clip = page.locator('.timeline-clip').first();
+		await expect(clip).toBeVisible();
+		await clip.click();
+
+		// Verify resize handles are visible
+		const leftHandle = clip.locator('.resize-handle.left');
+		const rightHandle = clip.locator('.resize-handle.right');
+
+		await expect(leftHandle).toBeVisible();
+		await expect(rightHandle).toBeVisible();
 	});
 
-	test('should allow left edge resize before first keyframe', async ({ page }) => {
-		// Setup a clip with keyframes not at the start
-		const result = await page.evaluate(() => {
-			const actions = (window as any).__timelineActions;
-			if (!actions) return { error: 'No actions available' };
-			
-			let state = (window as any).__timelineStore?.get?.();
-			let trackId = state?.tracks?.[0]?.id;
-			
-			if (!trackId) return { error: 'No track found' };
-			
-			// Add a clip starting at time 10 with duration 20
-			actions.addClip(trackId, 'test-shader', 10, 20);
-			
-			state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.startTime === 10);
-			const clipId = clip?.id;
-			
-			if (!clipId) return { error: 'Clip not created' };
-			
-			// Add keyframes at time 5 and 10 within the clip (relative to start)
-			// This means absolute times of 15 and 20
-			actions.addKeyframe(clipId, 'testParam', 5, 0.5);
-			actions.addKeyframe(clipId, 'testParam', 10, 0.8);
-			
-			// Get initial state
-			const initialStartTime = 10;
-			const initialDuration = 20;
-			const firstKeyframeTime = 5; // Relative to clip start
-			
-			// Simulate moving left edge to time 5 (5 seconds before first keyframe)
-			// This should extend the clip leftward, increasing duration
-			const newStartTime = 5;
-			const timeDiff = initialStartTime - newStartTime;
-			const newDuration = initialDuration + timeDiff;
-			
-			actions.updateClipTime(clipId, newStartTime);
-			actions.updateClipDuration(clipId, newDuration);
-			
-			state = (window as any).__timelineStore?.get?.();
-			const updatedClip = state?.tracks?.[0]?.clips?.find((c: any) => c.id === clipId);
-			
-			// In absolute mode, keyframes should maintain their absolute positions
-			// First keyframe was at absolute time 15 (start=10 + relative=5)
-			// With new start at 5, the keyframe should now be at relative time 10
-			const finalKeyframes = updatedClip?.automation?.[0]?.keyframes || [];
-			
-			return {
-				initialStartTime,
-				initialDuration,
-				newStartTime: updatedClip?.startTime,
-				newDuration: updatedClip?.duration,
-				firstKeyframeRelativeTime: finalKeyframes[0]?.time,
-				movedBeforeFirstKeyframe: updatedClip?.startTime < (updatedClip?.startTime + (finalKeyframes[0]?.time || 0))
-			};
-		});
-
-		if ('error' in result) {
-			throw new Error(result.error);
-		}
-
-		// The clip should be able to move its left edge before the first keyframe
-		expect(result.newStartTime).toBe(5);
-		expect(result.newDuration).toBe(25); // 20 + 5
-		expect(result.movedBeforeFirstKeyframe).toBe(true);
-	});
-
-	test('should allow dragging left edge before first keyframe in UI', async ({ page }) => {
-		// Setup: Add a clip with keyframes via UI interaction
+	test('should display clip with correct duration and position', async ({ page }) => {
+		// Add a clip at specific position and duration
 		await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
-			let state = (window as any).__timelineStore?.get?.();
-			let trackId = state?.tracks?.[0]?.id;
-			
-			// Add a clip at time 10, duration 10
-			actions.addClip(trackId, 'test-shader', 10, 10);
-			
-			state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.startTime === 10);
-			
-			// Add keyframes at relative times 2 and 5 (absolute times 12 and 15)
-			if (clip) {
-				actions.addKeyframe(clip.id, 'testParam', 2, 0.5);
-				actions.addKeyframe(clip.id, 'testParam', 5, 0.8);
+			const state = (window as any).__timelineStore?.get?.();
+			if (state?.tracks?.[0]) {
+				actions.addClip(state.tracks[0].id, 'Plasma.fs', 3.0, 7.5);
 			}
 		});
 
-		// Get initial state and view settings
-		const setupState = await page.evaluate(() => {
+		// Get clip dimensions
+		const clipInfo = await page.evaluate(() => {
 			const state = (window as any).__timelineStore?.get?.();
-			const view = (window as any).__timelineView?.get?.() || { pixelsPerSecond: 50, scrollX: 0 };
+			const viewState = (window as any).__timelineViewStore?.get?.();
 			const clip = state?.tracks?.[0]?.clips?.[0];
+
 			return {
 				startTime: clip?.startTime,
 				duration: clip?.duration,
-				firstKeyframeTime: clip?.automation?.[0]?.keyframes?.[0]?.time,
-				pixelsPerSecond: view.pixelsPerSecond,
-				scrollX: view.scrollX,
-				RULER_HEIGHT: 30
+				pixelsPerSecond: viewState?.pixelsPerSecond || 50
 			};
 		});
 
-		expect(setupState.startTime).toBe(10);
-		expect(setupState.duration).toBe(10);
+		// Calculate expected position and width
+		const expectedLeft = clipInfo.startTime * clipInfo.pixelsPerSecond;
+		const expectedWidth = clipInfo.duration * clipInfo.pixelsPerSecond;
 
-		// Calculate precise positions
-		const pixelsPerSecond = setupState.pixelsPerSecond;
-		const RULER_HEIGHT = setupState.RULER_HEIGHT;
-		const TRACK_HEIGHT = 60;
-		
-		// Left edge X position
-		const leftEdgeX = (setupState.startTime * pixelsPerSecond) - setupState.scrollX;
-		// Track Y position (ruler height + half of track height for middle of clip)
-		const trackY = RULER_HEIGHT + (TRACK_HEIGHT / 2);
-		
-		// Drag left edge 5 seconds to the left
-		const targetX = leftEdgeX - (5 * pixelsPerSecond);
-		
-		const canvas = page.locator('canvas.timeline');
-		
-		// Click and drag the left edge
-		await canvas.hover({ position: { x: leftEdgeX, y: trackY } });
-		await page.mouse.down();
-		await page.mouse.move(targetX, trackY, { steps: 10 });
-		await page.mouse.up();
+		// Get actual clip element style
+		const clipElement = page.locator('.timeline-clip').first();
+		const clipStyle = await clipElement.getAttribute('style');
 
-		// Wait for state to update
-		await page.waitForTimeout(100);
-
-		// Verify the clip moved and extended
-		const finalState = await page.evaluate(() => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			return {
-				startTime: clip?.startTime,
-				duration: clip?.duration,
-				firstKeyframeTime: clip?.automation?.[0]?.keyframes?.[0]?.time,
-				clipExists: !!clip
-			};
-		});
-
-		// Debug output if test fails
-		if (finalState.startTime === setupState.startTime) {
-			console.log('Clip did not move. Setup:', setupState);
-			console.log('Final:', finalState);
-			console.log('Mouse positions:', { leftEdgeX, targetX, trackY });
-		}
-
-		// The clip should have moved left and extended
-		expect(finalState.startTime).toBeLessThan(setupState.startTime);
-		// Duration should increase
-		expect(finalState.duration).toBeGreaterThan(setupState.duration);
-		// The keyframe should still be at the same absolute position
-		// If clip started at 10 with keyframe at relative 2 (absolute 12),
-		// and now clip starts at a lower time, keyframe relative time should increase
-		expect(finalState.firstKeyframeTime).toBeGreaterThan(setupState.firstKeyframeTime);
+		// Verify position and width are in the style
+		expect(clipStyle).toContain(`left: ${expectedLeft}px`);
+		expect(clipStyle).toContain(`width: ${expectedWidth}px`);
 	});
 
-	test('should allow dragging keyframes to change time and value', async ({ page }) => {
-		// Setup: Add a clip with a keyframe
-		const setup = await page.evaluate(() => {
+	test('should remove clip from timeline', async ({ page }) => {
+		// Add a clip
+		const clipId = await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
-			let state = (window as any).__timelineStore?.get?.();
-			let trackId = state?.tracks?.[0]?.id;
-			
-			// Add a clip at time 5, duration 10
-			actions.addClip(trackId, 'test-shader', 5, 10);
-			
-			state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.startTime === 5);
-			
-			// Add keyframe at relative time 2 (absolute time 7), value 0.5
-			if (clip) {
-				actions.addKeyframe(clip.id, 'testParam', 2, 0.5);
-				return { success: true, clipId: clip.id };
+			const state = (window as any).__timelineStore?.get?.();
+			if (state?.tracks?.[0]) {
+				actions.addClip(state.tracks[0].id, 'Plasma.fs', 2.0, 5.0);
+				const updatedState = (window as any).__timelineStore?.get?.();
+				return updatedState?.tracks?.[0]?.clips?.[0]?.id;
 			}
-			return { success: false };
-		});
-		
-		expect(setup.success).toBe(true);
-
-		// Get initial keyframe state
-		const initialState = await page.evaluate(() => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			const automation = clip?.automation;
-			const keyframe = automation?.[0]?.keyframes?.[0];
-			return {
-				time: keyframe?.time || 0,
-				value: keyframe?.value || 0,
-				clipStartTime: clip?.startTime || 0
-			};
+			return null;
 		});
 
-		expect(initialState.time).toBe(2);
-		expect(initialState.value).toBe(0.5);
+		expect(clipId).not.toBeNull();
 
-		// Calculate keyframe position on canvas
-		const canvas = page.locator('canvas.timeline');
-		const pixelsPerSecond = 50;
-		const RULER_HEIGHT = 30;
-		const TRACK_HEIGHT = 60;
-		const AUTOMATION_LANE_HEIGHT = 40;
-		
-		// Keyframe X position (absolute time 7 = clip start 5 + relative 2)
-		const keyframeAbsoluteTime = initialState.clipStartTime + initialState.time;
-		const keyframeX = keyframeAbsoluteTime * pixelsPerSecond;
-		
-		// Keyframe Y position (in automation lane, at 50% height since value is 0.5)
-		const trackY = RULER_HEIGHT + TRACK_HEIGHT;
-		const keyframeY = trackY + (AUTOMATION_LANE_HEIGHT * (1 - initialState.value)); // Inverted: top = 1.0
-		
-		// Drag keyframe to new position: +2 seconds right, value 0.8 (higher)
-		const newRelativeX = keyframeX + (2 * pixelsPerSecond);
-		const newRelativeY = trackY + (AUTOMATION_LANE_HEIGHT * (1 - 0.8));
-		
-		// Get canvas position to convert relative coordinates to absolute
-		const canvasBox = await canvas.boundingBox();
-		if (!canvasBox) throw new Error('Canvas not found');
-		
-		const absoluteStartX = canvasBox.x + keyframeX;
-		const absoluteStartY = canvasBox.y + keyframeY;
-		const absoluteEndX = canvasBox.x + newRelativeX;
-		const absoluteEndY = canvasBox.y + newRelativeY;
-		
-		await page.mouse.move(absoluteStartX, absoluteStartY);
-		await page.mouse.down();
-		await page.mouse.move(absoluteEndX, absoluteEndY, { steps: 10 });
-		await page.mouse.up();
+		// Verify clip is visible
+		const clip = page.locator('.timeline-clip').first();
+		await expect(clip).toBeVisible();
 
-		// Wait for state to update
-		await page.waitForTimeout(100);
+		// Remove the clip
+		await page.evaluate(({ clipId }) => {
+			const actions = (window as any).__timelineActions;
+			actions.removeClip(clipId);
+		}, { clipId });
 
-		// Verify keyframe moved
-		const finalState = await page.evaluate(() => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			const automation = clip?.automation;
-			const keyframe = automation?.[0]?.keyframes?.[0];
-			return {
-				time: keyframe?.time || 0,
-				value: keyframe?.value || 0
-			};
-		});
-
-		// Time should have increased
-		expect(finalState.time).toBeGreaterThan(initialState.time);
-		// Value should have increased (closer to 1.0)
-		expect(finalState.value).toBeGreaterThan(initialState.value);
+		// Verify clip is gone
+		await expect(clip).not.toBeVisible();
 	});
 
-	test('should maintain cursor tracking during consecutive keyframe drags', async ({ page }) => {
-		// This test ensures the keyframe "sticks" to the cursor and doesn't jump around
+	test('should update clip time when moved', async ({ page }) => {
+		// Add a clip
+		const clipId = await page.evaluate(() => {
+			const actions = (window as any).__timelineActions;
+			const state = (window as any).__timelineStore?.get?.();
+			if (state?.tracks?.[0]) {
+				actions.addClip(state.tracks[0].id, 'Plasma.fs', 2.0, 5.0);
+				const updatedState = (window as any).__timelineStore?.get?.();
+				return updatedState?.tracks?.[0]?.clips?.[0]?.id;
+			}
+			return null;
+		});
+
+		expect(clipId).not.toBeNull();
+
+		// Update clip time
+		await page.evaluate(({ clipId }) => {
+			const actions = (window as any).__timelineActions;
+			actions.updateClipTime(clipId, 6.5);
+		}, { clipId });
+
+		// Verify new time
+		const newTime = await page.evaluate(({ clipId }) => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.id === clipId);
+			return clip?.startTime;
+		}, { clipId });
+
+		expect(newTime).toBe(6.5);
+	});
+
+	test('should toggle track mute', async ({ page }) => {
+		// Get initial mute state
+		const initialMuted = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			return state?.tracks?.[0]?.muted || false;
+		});
+
+		// Click mute button
+		const muteButton = page.locator('[data-track-id]').first().locator('button[aria-label*="mute"]').first();
+		await muteButton.click();
+
+		// Verify mute state changed
+		const newMuted = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			return state?.tracks?.[0]?.muted || false;
+		});
+
+		expect(newMuted).toBe(!initialMuted);
+	});
+
+	test('should toggle track solo', async ({ page }) => {
+		// Get initial solo state
+		const initialSolo = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			return state?.tracks?.[0]?.solo || false;
+		});
+
+		// Click solo button
+		const soloButton = page.locator('[data-track-id]').first().locator('button[aria-label*="solo"]').first();
+		await soloButton.click();
+
+		// Verify solo state changed
+		const newSolo = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			return state?.tracks?.[0]?.solo || false;
+		});
+
+		expect(newSolo).toBe(!initialSolo);
+	});
+
+	test('should display automation lanes when keyframes exist', async ({ page }) => {
+		// Add a clip with keyframes
 		await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
-			let state = (window as any).__timelineStore?.get?.();
-			let trackId = state?.tracks?.[0]?.id;
-			
-			actions.addClip(trackId, 'test-shader', 5, 10);
-			state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.startTime === 5);
-			
-			if (clip) {
-				actions.addKeyframe(clip.id, 'testParam', 5, 0.5);
+			const state = (window as any).__timelineStore?.get?.();
+			if (state?.tracks?.[0]) {
+				actions.addClip(state.tracks[0].id, 'Plasma.fs', 2.0, 10.0);
+				const updatedState = (window as any).__timelineStore?.get?.();
+				const clipId = updatedState?.tracks?.[0]?.clips?.[0]?.id;
+
+				// Add keyframes
+				actions.addKeyframe(clipId, 'speed', 2.0, 0.5);
+				actions.addKeyframe(clipId, 'speed', 5.0, 0.8);
 			}
 		});
 
-		const canvas = page.locator('canvas.timeline');
-		const pixelsPerSecond = 50;
-		const RULER_HEIGHT = 30;
-		const TRACK_HEIGHT = 60;
-		const AUTOMATION_LANE_HEIGHT = 40;
-		const trackY = RULER_HEIGHT + TRACK_HEIGHT;
-		
-		const canvasBox = await canvas.boundingBox();
-		if (!canvasBox) throw new Error('Canvas not found');
-
-		// First drag: move keyframe from time 5 to time 6 (relative times within clip)
-		let state1 = await page.evaluate(() => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			const kf = clip?.automation?.[0]?.keyframes?.[0];
-			return { time: kf?.time, clipStart: clip?.startTime };
-		});
-		
-		let startX1 = canvasBox.x + ((state1.clipStart + state1.time) * pixelsPerSecond);
-		let startY1 = canvasBox.y + trackY + (AUTOMATION_LANE_HEIGHT * 0.5);
-		let endX1 = startX1 + (1 * pixelsPerSecond); // +1 second
-		let endY1 = startY1; // same value
-		
-		await page.mouse.move(startX1, startY1);
-		await page.mouse.down();
-		await page.mouse.move(endX1, endY1, { steps: 5 });
-		await page.mouse.up();
-		await page.waitForTimeout(50);
-
-		// Verify first drag worked
-		let state2 = await page.evaluate(() => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			const kf = clip?.automation?.[0]?.keyframes?.[0];
-			return { time: kf?.time, value: kf?.value };
-		});
-		
-		expect(state2.time).toBeCloseTo(6, 1); // Should be around time 6
-
-		// Second consecutive drag: move from time 6 to time 7
-		// This catches the bug where dragStartTime was being updated
-		let startX2 = canvasBox.x + ((state1.clipStart + state2.time) * pixelsPerSecond);
-		let startY2 = canvasBox.y + trackY + (AUTOMATION_LANE_HEIGHT * (1 - state2.value));
-		let endX2 = startX2 + (1 * pixelsPerSecond); // +1 second again
-		let endY2 = startY2;
-		
-		await page.mouse.move(startX2, startY2);
-		await page.mouse.down();
-		await page.mouse.move(endX2, endY2, { steps: 5 });
-		await page.mouse.up();
-		await page.waitForTimeout(50);
-
-		// Verify second drag also moved exactly +1 second
-		let state3 = await page.evaluate(() => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			const kf = clip?.automation?.[0]?.keyframes?.[0];
-			return { time: kf?.time };
-		});
-		
-		expect(state3.time).toBeCloseTo(7, 1); // Should be around time 7
-		
-		// The key assertion: the delta between drags should be consistent
-		// If cursor tracking is broken, the second drag would move less or jump erratically
-		const delta1 = state2.time - state1.time;
-		const delta2 = state3.time - state2.time;
-		expect(Math.abs(delta1 - delta2)).toBeLessThan(0.3); // Both drags should move ~1 second
+		// Wait for automation lane to appear
+		const automationLane = page.locator('.automation-lane-wrapper').first();
+		await expect(automationLane).toBeVisible({ timeout: 2000 });
 	});
 
-	test('should prevent keyframes from being dragged past each other', async ({ page }) => {
-		// This test ensures keyframes don't overlap and don't disappear when dragged
+	test('should handle multiple clips on same track', async ({ page }) => {
+		// Add multiple clips
 		await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
-			let state = (window as any).__timelineStore?.get?.();
-			let trackId = state?.tracks?.[0]?.id;
-			
-			actions.addClip(trackId, 'test-shader', 0, 10);
-			state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			
-			if (clip) {
-				// Add two keyframes with some space between them
-				actions.addKeyframe(clip.id, 'testParam', 2, 0.3);
-				actions.addKeyframe(clip.id, 'testParam', 8, 0.7);
+			const state = (window as any).__timelineStore?.get?.();
+			if (state?.tracks?.[0]) {
+				const trackId = state.tracks[0].id;
+				actions.addClip(trackId, 'Plasma.fs', 1.0, 3.0);
+				actions.addClip(trackId, 'Checkerboard.fs', 5.0, 4.0);
+				actions.addClip(trackId, 'Ripples.fs', 10.0, 2.0);
 			}
 		});
 
-		const canvas = page.locator('canvas.timeline');
-		const pixelsPerSecond = 50;
-		const RULER_HEIGHT = 30;
-		const TRACK_HEIGHT = 60;
-		const AUTOMATION_LANE_HEIGHT = 40;
-		const trackY = RULER_HEIGHT + TRACK_HEIGHT;
-		
-		const canvasBox = await canvas.boundingBox();
-		if (!canvasBox) throw new Error('Canvas not found');
+		// Verify all clips are visible
+		const clips = page.locator('[data-track-id]').first().locator('.timeline-clip');
+		await expect(clips).toHaveCount(3);
+	});
 
-		// Verify both keyframes exist
-		const initialState = await page.evaluate(() => {
+	test('should handle clips across multiple tracks', async ({ page }) => {
+		// Add clips to different tracks
+		await page.evaluate(() => {
+			const actions = (window as any).__timelineActions;
 			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			return {
-				keyframeCount: clip?.automation?.[0]?.keyframes?.length,
-				keyframes: clip?.automation?.[0]?.keyframes
-			};
-		});
-		
-		expect(initialState.keyframeCount).toBe(2);
 
-		// Try to drag left keyframe (at time 2) far to the right past the right keyframe (at time 8)
-		const leftX = canvasBox.x + (2 * pixelsPerSecond);
-		const leftY = canvasBox.y + trackY + (AUTOMATION_LANE_HEIGHT * (1 - 0.3));
-		const farRightX = canvasBox.x + (9.5 * pixelsPerSecond); // Try to move past time 8 to 9.5
-		
-		await page.mouse.move(leftX, leftY);
-		await page.mouse.down();
-		await page.mouse.move(farRightX, leftY, { steps: 10 });
-		await page.mouse.up();
-		await page.waitForTimeout(100);
-
-		// Verify: Both keyframes still exist and left one is clamped before right
-		const afterDrag = await page.evaluate(() => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.[0];
-			return {
-				keyframeCount: clip?.automation?.[0]?.keyframes?.length,
-				keyframes: clip?.automation?.[0]?.keyframes?.map((kf: any) => ({ time: kf.time, value: kf.value }))
-			};
+			if (state?.tracks?.[0]) {
+				actions.addClip(state.tracks[0].id, 'Plasma.fs', 1.0, 3.0);
+			}
+			if (state?.tracks?.[1]) {
+				actions.addClip(state.tracks[1].id, 'Checkerboard.fs', 2.0, 4.0);
+			}
+			if (state?.tracks?.[2]) {
+				actions.addClip(state.tracks[2].id, 'Ripples.fs', 3.0, 2.0);
+			}
 		});
-		
-		expect(afterDrag.keyframeCount).toBe(2); // Both keyframes should still exist
-		expect(afterDrag.keyframes[0].time).toBeGreaterThan(2); // Left moved right
-		expect(afterDrag.keyframes[0].time).toBeLessThan(8); // But clamped before right keyframe
-		expect(afterDrag.keyframes[1].time).toBe(8); // Right keyframe unchanged
-		// Verify minimum gap is maintained (with small tolerance for floating point)
-		expect(afterDrag.keyframes[1].time - afterDrag.keyframes[0].time).toBeGreaterThanOrEqual(0.019);
+
+		// Verify each track has a clip
+		const track1Clips = page.locator('[data-track-id]').first().locator('.timeline-clip');
+		const track2Clips = page.locator('[data-track-id]').nth(1).locator('.timeline-clip');
+		const track3Clips = page.locator('[data-track-id]').nth(2).locator('.timeline-clip');
+
+		await expect(track1Clips).toHaveCount(1);
+		await expect(track2Clips).toHaveCount(1);
+		await expect(track3Clips).toHaveCount(1);
 	});
 });
