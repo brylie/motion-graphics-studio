@@ -35,15 +35,37 @@
   const TRACK_HEIGHT = 60;
   const AUTOMATION_LANE_HEIGHT = 40;
 
+  // Get all unique automation parameter names across all clips - make it reactive
+  $: allAutomationParams = (() => {
+    const params = new Set<string>();
+    for (const clip of track.clips) {
+      for (const curve of clip.automation) {
+        if (curve.keyframes.length > 0) {
+          params.add(curve.parameterName);
+        }
+      }
+    }
+    const result = Array.from(params);
+    console.log(
+      `Track ${track.id} automation params:`,
+      result,
+      "clips:",
+      track.clips.length
+    );
+    return result;
+  })();
+
   // Calculate automation lane count for this track
-  $: automationCount = track.clips.reduce((count, clip) => {
-    const clipAutomationCount = clip.automation.filter(
-      (c) => c.keyframes.length > 0
-    ).length;
-    return Math.max(count, clipAutomationCount);
-  }, 0);
+  $: automationCount = allAutomationParams.length;
 
   $: trackHeight = TRACK_HEIGHT + automationCount * AUTOMATION_LANE_HEIGHT;
+
+  $: console.log(
+    `Track ${track.id} height:`,
+    trackHeight,
+    "automationCount:",
+    automationCount
+  );
 
   function handleToggleMute() {
     timelineActions.toggleMute(track.id);
@@ -136,37 +158,47 @@
     <!-- Automation lanes -->
     {#if automationCount > 0}
       <div class="automation-lanes">
-        {#each track.clips as clip (clip.id)}
-          {#each clip.automation as curve (curve.parameterName)}
-            {#if curve.keyframes.length > 0}
-              <div
-                class="automation-lane-wrapper"
-                style="left: {clip.startTime *
-                  pixelsPerSecond}px; width: {clip.duration *
-                  pixelsPerSecond}px; height: {AUTOMATION_LANE_HEIGHT}px;"
-              >
-                <AutomationLane
-                  parameterName={curve.parameterName}
-                  keyframes={curve.keyframes}
-                  clipDuration={clip.duration}
-                  {pixelsPerSecond}
-                  laneHeight={AUTOMATION_LANE_HEIGHT}
-                  selectedKeyframeTime={selectedKeyframe?.clipId === clip.id &&
-                  selectedKeyframe?.paramName === curve.parameterName
-                    ? selectedKeyframe.time
-                    : null}
-                  onkeyframeselect={(detail) =>
-                    handleKeyframeSelect(
-                      clip.id,
-                      curve.parameterName,
-                      detail.time
-                    )}
-                  onkeyframemove={(detail) =>
-                    handleKeyframeMove(clip.id, curve.parameterName, detail)}
-                />
-              </div>
-            {/if}
-          {/each}
+        <!-- Group all automation curves by parameter name across all clips -->
+        {#each allAutomationParams as paramName}
+          <div
+            class="automation-lane-row"
+            style="height: {AUTOMATION_LANE_HEIGHT}px;"
+          >
+            {#each track.clips as clip (clip.id)}
+              {@const curve = clip.automation.find(
+                (c) => c.parameterName === paramName
+              )}
+              {#if curve && curve.keyframes.length > 0}
+                <div
+                  class="automation-lane-wrapper"
+                  style="left: {clip.startTime *
+                    pixelsPerSecond}px; width: {clip.duration *
+                    pixelsPerSecond}px;"
+                >
+                  <AutomationLane
+                    parameterName={curve.parameterName}
+                    keyframes={curve.keyframes}
+                    clipDuration={clip.duration}
+                    {pixelsPerSecond}
+                    laneHeight={AUTOMATION_LANE_HEIGHT}
+                    selectedKeyframeTime={selectedKeyframe?.clipId ===
+                      clip.id &&
+                    selectedKeyframe?.paramName === curve.parameterName
+                      ? selectedKeyframe.time
+                      : null}
+                    onkeyframeselect={(detail) =>
+                      handleKeyframeSelect(
+                        clip.id,
+                        curve.parameterName,
+                        detail.time
+                      )}
+                    onkeyframemove={(detail) =>
+                      handleKeyframeMove(clip.id, curve.parameterName, detail)}
+                  />
+                </div>
+              {/if}
+            {/each}
+          </div>
         {/each}
       </div>
     {/if}
@@ -243,10 +275,22 @@
     width: 100%;
     display: flex;
     flex-direction: column;
+    gap: 0;
+    background: rgba(255, 0, 0, 0.1); /* Debug background */
+  }
+
+  .automation-lane-row {
+    position: relative;
+    width: 100%;
+    pointer-events: none;
+    background: rgba(0, 255, 0, 0.1); /* Debug background */
   }
 
   .automation-lane-wrapper {
     position: absolute;
     top: 0;
+    pointer-events: auto;
+    height: 100%;
+    background: rgba(0, 0, 255, 0.1); /* Debug background */
   }
 </style>

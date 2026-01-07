@@ -20,7 +20,8 @@
     | undefined = undefined;
 
   $: width = clipDuration * pixelsPerSecond;
-  $: height = laneHeight;
+  // Reserve space for parameter name label (approximately 14px)
+  $: height = laneHeight - 14;
 
   let isDragging = false;
   let draggedKeyframeTime: number | null = null;
@@ -67,21 +68,24 @@
 
   function handleSvgMouseDown(e: MouseEvent) {
     if (readonly) return;
-
-    const rect = svgElement.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Check if clicking on a keyframe
-    const clickedKeyframe = findKeyframeAtPoint(x, y);
-
-    if (clickedKeyframe) {
-      onkeyframeselect?.({ time: clickedKeyframe.time });
-      isDragging = true;
-      draggedKeyframeTime = clickedKeyframe.time;
-    } else {
+    // Only handle if clicking on background (not on keyframes)
+    // Keyframes have their own handlers now
+    if (
+      e.target === svgElement ||
+      (e.target as SVGElement).classList.contains("background") ||
+      (e.target as SVGElement).classList.contains("grid-line")
+    ) {
       onkeyframeselect?.({ time: -1 }); // Deselect
     }
+  }
+
+  function handleKeyframeMouseDown(e: MouseEvent, kf: Keyframe) {
+    if (readonly) return;
+    e.stopPropagation();
+
+    onkeyframeselect?.({ time: kf.time });
+    isDragging = true;
+    draggedKeyframeTime = kf.time;
   }
 
   function handleSvgMouseMove(e: MouseEvent) {
@@ -133,22 +137,6 @@
     draggedKeyframeTime = null;
   }
 
-  function findKeyframeAtPoint(x: number, y: number): Keyframe | null {
-    const hitRadius = keyframeSize;
-
-    for (const kf of keyframes) {
-      const kfX = timeToX(kf.time);
-      const kfY = valueToY(kf.value);
-      const distance = Math.sqrt((x - kfX) ** 2 + (y - kfY) ** 2);
-
-      if (distance <= hitRadius) {
-        return kf;
-      }
-    }
-
-    return null;
-  }
-
   // Expose for testing
   export function getKeyframeCount(): number {
     return keyframes.length;
@@ -191,14 +179,36 @@
 
     <!-- Keyframes -->
     {#each keyframes as kf (kf.time)}
-      <circle
-        cx={timeToX(kf.time)}
-        cy={valueToY(kf.value)}
-        r={keyframeSize}
-        class="keyframe"
-        class:selected={selectedKeyframeTime === kf.time}
-        class:readonly
-      />
+      <g class="keyframe-group">
+        <!-- Invisible larger hit area -->
+        <circle
+          cx={timeToX(kf.time)}
+          cy={valueToY(kf.value)}
+          r={keyframeSize * 2}
+          class="keyframe-hitarea"
+          role="button"
+          tabindex="0"
+          aria-label="Keyframe at {kf.time.toFixed(
+            2
+          )}s, value {kf.value.toFixed(2)}"
+          on:mousedown={(e) => handleKeyframeMouseDown(e, kf)}
+        />
+        <!-- Visible keyframe -->
+        <circle
+          cx={timeToX(kf.time)}
+          cy={valueToY(kf.value)}
+          r={keyframeSize}
+          class="keyframe"
+          class:selected={selectedKeyframeTime === kf.time}
+          class:readonly
+          role="button"
+          tabindex="0"
+          aria-label="Keyframe at {kf.time.toFixed(
+            2
+          )}s, value {kf.value.toFixed(2)}"
+          on:mousedown={(e) => handleKeyframeMouseDown(e, kf)}
+        />
+      </g>
     {/each}
   </svg>
 </div>
@@ -207,19 +217,23 @@
   .automation-lane {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
+    height: 100%;
   }
 
   .parameter-name {
-    font-size: 12px;
+    font-size: 10px;
     color: #9ca3af;
     padding: 2px 4px;
     font-weight: 500;
+    line-height: 1;
+    flex-shrink: 0;
   }
 
   .automation-svg {
     display: block;
     cursor: default;
+    flex: 1;
   }
 
   .automation-svg.dragging {
@@ -247,6 +261,25 @@
     stroke: #60a5fa;
     stroke-width: 2;
     fill: none;
+  }
+
+  .keyframe-group {
+    cursor: grab;
+  }
+
+  .keyframe-group:active {
+    cursor: grabbing;
+  }
+
+  .keyframe-hitarea {
+    fill: transparent;
+    stroke: none;
+    cursor: grab;
+  }
+
+  .keyframe-hitarea:hover + .keyframe {
+    fill: #93c5fd;
+    r: 10;
   }
 
   .keyframe {
