@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { Timeline, Track, Clip, TimelineViewState } from '$lib/timeline/types';
+import type { Timeline, Track, Clip, TimelineViewState, AutomationCurve } from '$lib/timeline/types';
 import { v4 as uuidv4 } from 'uuid';
 import { shaderLibrary } from './shaders';
 import { getDefaultValue } from '$lib/isf/parser';
@@ -109,17 +109,24 @@ export const timelineActions = {
 	/**
 	 * Add a clip to a track
 	 */
-	addClip(trackId: string, shaderName: string, startTime: number, duration: number = 5) {
+	addClip(
+		trackId: string,
+		shaderName: string,
+		startTime: number,
+		duration: number = 5,
+		existingParameters?: { [key: string]: any },
+		existingAutomation?: AutomationCurve[]
+	) {
 		timeline.update(t => {
 			const tracks = t.tracks.map(track => {
 				if (track.id === trackId) {
 					// Get shader metadata to initialize parameters
 					const shaderLibraryState = get(shaderLibrary);
 					const shader = shaderLibraryState.shaders.find(s => s.filename === shaderName);
-					
-					// Initialize parameters with default values from shader
-					const parameters: { [key: string]: any } = {};
-					if (shader && shader.metadata.INPUTS) {
+
+					// Use existing parameters if provided, otherwise initialize with defaults
+					let parameters: { [key: string]: any } = existingParameters || {};
+					if (!existingParameters && shader && shader.metadata.INPUTS) {
 						for (const input of shader.metadata.INPUTS) {
 							// Only include non-image inputs in parameters
 							if (input.TYPE !== 'image' && input.TYPE !== 'audio' && input.TYPE !== 'audioFFT') {
@@ -127,7 +134,7 @@ export const timelineActions = {
 							}
 						}
 					}
-					
+
 					const newClip: Clip = {
 						id: uuidv4(),
 						shaderId: shaderName,
@@ -135,7 +142,7 @@ export const timelineActions = {
 						startTime,
 						duration,
 						parameters,
-						automation: [],
+						automation: existingAutomation || [],
 						alpha: 1.0
 					};
 					return {

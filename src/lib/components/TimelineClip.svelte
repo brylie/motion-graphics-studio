@@ -33,6 +33,22 @@
     dispatch("dragstart", { clipId: clip.id, startX: e.clientX });
   }
 
+  function handleDragStart(e: DragEvent) {
+    if (!e.dataTransfer) return;
+
+    // Set drag data
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("application/json", JSON.stringify({
+      type: "clip",
+      clipId: clip.id
+    }));
+
+    // Create drag image
+    if (e.target instanceof HTMLElement) {
+      e.dataTransfer.setDragImage(e.target, 0, 0);
+    }
+  }
+
   function handleLeftResizeMouseDown(e: MouseEvent) {
     e.stopPropagation();
     isResizingLeft = true;
@@ -73,8 +89,10 @@
   class:selected={isSelected}
   data-clip-id={clip.id}
   style="left: {left}px; width: {width}px;"
+  draggable="true"
   on:click={handleClipClick}
   on:mousedown={handleClipMouseDown}
+  on:dragstart={handleDragStart}
   on:keydown={(e) => e.key === "Enter" && handleClipClick(e as any)}
   role="button"
   tabindex="0"

@@ -279,6 +279,18 @@
     }
   }
 
+  function getTrackAtPosition(y: number): string | null {
+    // Find which track element the mouse is over
+    const trackElements = timelineContainer.querySelectorAll('.timeline-track');
+    for (const trackEl of trackElements) {
+      const rect = trackEl.getBoundingClientRect();
+      if (y >= rect.top && y <= rect.bottom) {
+        return trackEl.getAttribute('data-track-id');
+      }
+    }
+    return null;
+  }
+
   function handleDrop(e: DragEvent) {
     e.preventDefault();
 
@@ -295,17 +307,70 @@
       const data = JSON.parse(dataStr);
 
       if (data.type === "shader" && data.shaderId) {
+        // Detect which track the drop occurred on
+        const trackId = getTrackAtPosition(e.clientY);
+
+        if (!trackId) {
+          console.warn("No track found at drop position");
+          return;
+        }
+
         const rect = timelineContainer.getBoundingClientRect();
         const scrollLeft = timelineContainer?.scrollLeft || 0;
-        const relativeX = e.clientX - rect.left + scrollLeft;
+        const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
         const dropTime = snapTime(
           Math.max(0, relativeX / $timelineView.pixelsPerSecond)
         );
 
-        // For now, drop on first track (could be improved with track detection)
-        if ($timeline.tracks.length > 0) {
-          const trackId = $timeline.tracks[0].id;
-          timelineActions.addClip(trackId, data.shaderId, dropTime, 5.0);
+        timelineActions.addClip(trackId, data.shaderId, dropTime, 5.0);
+      } else if (data.type === "clip" && data.clipId) {
+        // Moving an existing clip to a different track
+        const targetTrackId = getTrackAtPosition(e.clientY);
+
+        if (!targetTrackId) {
+          console.warn("No track found at drop position");
+          return;
+        }
+
+        // Find the source clip
+        let sourceClip = null;
+        let sourceTrackId = null;
+        for (const track of $timeline.tracks) {
+          const clip = track.clips.find(c => c.id === data.clipId);
+          if (clip) {
+            sourceClip = clip;
+            sourceTrackId = track.id;
+            break;
+          }
+        }
+
+        if (!sourceClip || !sourceTrackId) {
+          console.warn("Source clip not found");
+          return;
+        }
+
+        const rect = timelineContainer.getBoundingClientRect();
+        const scrollLeft = timelineContainer?.scrollLeft || 0;
+        const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
+        const dropTime = snapTime(
+          Math.max(0, relativeX / $timelineView.pixelsPerSecond)
+        );
+
+        // If dropping on a different track, move the clip
+        if (targetTrackId !== sourceTrackId) {
+          // Remove from source track and add to target track
+          timelineActions.removeClip(data.clipId);
+          timelineActions.addClip(
+            targetTrackId,
+            sourceClip.shaderId,
+            dropTime,
+            sourceClip.duration,
+            sourceClip.parameters,
+            sourceClip.automation
+          );
+        } else {
+          // Same track, just update position
+          timelineActions.updateClipTime(data.clipId, dropTime);
         }
       }
     } catch (error) {
