@@ -453,7 +453,22 @@
       LABEL_WIDTH +
       $dragDropStore.previewPosition.time * $timelineView.pixelsPerSecond;
     const width = $dragDropStore.duration * $timelineView.pixelsPerSecond;
-    const top = trackIndex * 28; // TRACK_HEIGHT from TimelineTrack
+
+    // Calculate top position by summing heights of all previous tracks
+    let top = 0;
+    for (let i = 0; i < trackIndex; i++) {
+      const track = $timeline.tracks[i];
+      // Count automation parameters with keyframes
+      const automationCount = new Set(
+        track.clips.flatMap((clip) =>
+          clip.automation
+            .filter((curve) => curve.keyframes.length > 0)
+            .map((curve) => curve.parameterName)
+        )
+      ).size;
+      const trackHeight = 28 + automationCount * 50; // TRACK_HEIGHT + AUTOMATION_LANE_HEIGHT
+      top += trackHeight;
+    }
 
     return `left: ${left}px; top: ${top}px; width: ${width}px; height: 28px; display: block;`;
   })();

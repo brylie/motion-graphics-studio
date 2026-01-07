@@ -93,6 +93,11 @@
 
   let isDragOver = false;
 
+  // Clear drag-over state when drag operation ends
+  $: if (!$dragDropStore.isDragging) {
+    isDragOver = false;
+  }
+
   function handleDragEnter(e: DragEvent) {
     e.preventDefault();
     isDragOver = true;
