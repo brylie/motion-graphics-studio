@@ -20,6 +20,10 @@
         get: () => get(timeline),
         subscribe: timeline.subscribe,
       };
+      (window as any).__timelineView = {
+        get: () => get(timelineView),
+        subscribe: timelineView.subscribe,
+      };
       (window as any).__timelineActions = timelineActions;
       (window as any).__playback = playback;
     }

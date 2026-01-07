@@ -350,4 +350,162 @@ test.describe('Timeline Interactions', () => {
 		// Duration should be constrained to at least include the rightmost keyframe
 		expect(finalDuration).toBeGreaterThanOrEqual(15);
 	});
+
+	test('should allow left edge resize before first keyframe', async ({ page }) => {
+		// Setup a clip with keyframes not at the start
+		const result = await page.evaluate(() => {
+			const actions = (window as any).__timelineActions;
+			if (!actions) return { error: 'No actions available' };
+			
+			let state = (window as any).__timelineStore?.get?.();
+			let trackId = state?.tracks?.[0]?.id;
+			
+			if (!trackId) return { error: 'No track found' };
+			
+			// Add a clip starting at time 10 with duration 20
+			actions.addClip(trackId, 'test-shader', 10, 20);
+			
+			state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.startTime === 10);
+			const clipId = clip?.id;
+			
+			if (!clipId) return { error: 'Clip not created' };
+			
+			// Add keyframes at time 5 and 10 within the clip (relative to start)
+			// This means absolute times of 15 and 20
+			actions.addKeyframe(clipId, 'testParam', 5, 0.5);
+			actions.addKeyframe(clipId, 'testParam', 10, 0.8);
+			
+			// Get initial state
+			const initialStartTime = 10;
+			const initialDuration = 20;
+			const firstKeyframeTime = 5; // Relative to clip start
+			
+			// Simulate moving left edge to time 5 (5 seconds before first keyframe)
+			// This should extend the clip leftward, increasing duration
+			const newStartTime = 5;
+			const timeDiff = initialStartTime - newStartTime;
+			const newDuration = initialDuration + timeDiff;
+			
+			actions.updateClipTime(clipId, newStartTime);
+			actions.updateClipDuration(clipId, newDuration);
+			
+			state = (window as any).__timelineStore?.get?.();
+			const updatedClip = state?.tracks?.[0]?.clips?.find((c: any) => c.id === clipId);
+			
+			// In absolute mode, keyframes should maintain their absolute positions
+			// First keyframe was at absolute time 15 (start=10 + relative=5)
+			// With new start at 5, the keyframe should now be at relative time 10
+			const finalKeyframes = updatedClip?.automation?.[0]?.keyframes || [];
+			
+			return {
+				initialStartTime,
+				initialDuration,
+				newStartTime: updatedClip?.startTime,
+				newDuration: updatedClip?.duration,
+				firstKeyframeRelativeTime: finalKeyframes[0]?.time,
+				movedBeforeFirstKeyframe: updatedClip?.startTime < (updatedClip?.startTime + (finalKeyframes[0]?.time || 0))
+			};
+		});
+
+		if ('error' in result) {
+			throw new Error(result.error);
+		}
+
+		// The clip should be able to move its left edge before the first keyframe
+		expect(result.newStartTime).toBe(5);
+		expect(result.newDuration).toBe(25); // 20 + 5
+		expect(result.movedBeforeFirstKeyframe).toBe(true);
+	});
+
+	test('should allow dragging left edge before first keyframe in UI', async ({ page }) => {
+		// Setup: Add a clip with keyframes via UI interaction
+		await page.evaluate(() => {
+			const actions = (window as any).__timelineActions;
+			let state = (window as any).__timelineStore?.get?.();
+			let trackId = state?.tracks?.[0]?.id;
+			
+			// Add a clip at time 10, duration 10
+			actions.addClip(trackId, 'test-shader', 10, 10);
+			
+			state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.startTime === 10);
+			
+			// Add keyframes at relative times 2 and 5 (absolute times 12 and 15)
+			if (clip) {
+				actions.addKeyframe(clip.id, 'testParam', 2, 0.5);
+				actions.addKeyframe(clip.id, 'testParam', 5, 0.8);
+			}
+		});
+
+		// Get initial state and view settings
+		const setupState = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			const view = (window as any).__timelineView?.get?.() || { pixelsPerSecond: 50, scrollX: 0 };
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			return {
+				startTime: clip?.startTime,
+				duration: clip?.duration,
+				firstKeyframeTime: clip?.automation?.[0]?.keyframes?.[0]?.time,
+				pixelsPerSecond: view.pixelsPerSecond,
+				scrollX: view.scrollX,
+				RULER_HEIGHT: 30
+			};
+		});
+
+		expect(setupState.startTime).toBe(10);
+		expect(setupState.duration).toBe(10);
+
+		// Calculate precise positions
+		const pixelsPerSecond = setupState.pixelsPerSecond;
+		const RULER_HEIGHT = setupState.RULER_HEIGHT;
+		const TRACK_HEIGHT = 60;
+		
+		// Left edge X position
+		const leftEdgeX = (setupState.startTime * pixelsPerSecond) - setupState.scrollX;
+		// Track Y position (ruler height + half of track height for middle of clip)
+		const trackY = RULER_HEIGHT + (TRACK_HEIGHT / 2);
+		
+		// Drag left edge 5 seconds to the left
+		const targetX = leftEdgeX - (5 * pixelsPerSecond);
+		
+		const canvas = page.locator('canvas.timeline');
+		
+		// Click and drag the left edge
+		await canvas.hover({ position: { x: leftEdgeX, y: trackY } });
+		await page.mouse.down();
+		await page.mouse.move(targetX, trackY, { steps: 10 });
+		await page.mouse.up();
+
+		// Wait for state to update
+		await page.waitForTimeout(100);
+
+		// Verify the clip moved and extended
+		const finalState = await page.evaluate(() => {
+			const state = (window as any).__timelineStore?.get?.();
+			const clip = state?.tracks?.[0]?.clips?.[0];
+			return {
+				startTime: clip?.startTime,
+				duration: clip?.duration,
+				firstKeyframeTime: clip?.automation?.[0]?.keyframes?.[0]?.time,
+				clipExists: !!clip
+			};
+		});
+
+		// Debug output if test fails
+		if (finalState.startTime === setupState.startTime) {
+			console.log('Clip did not move. Setup:', setupState);
+			console.log('Final:', finalState);
+			console.log('Mouse positions:', { leftEdgeX, targetX, trackY });
+		}
+
+		// The clip should have moved left and extended
+		expect(finalState.startTime).toBeLessThan(setupState.startTime);
+		// Duration should increase
+		expect(finalState.duration).toBeGreaterThan(setupState.duration);
+		// The keyframe should still be at the same absolute position
+		// If clip started at 10 with keyframe at relative 2 (absolute 12),
+		// and now clip starts at a lower time, keyframe relative time should increase
+		expect(finalState.firstKeyframeTime).toBeGreaterThan(setupState.firstKeyframeTime);
+	});
 });

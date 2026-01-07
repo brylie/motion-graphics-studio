@@ -697,6 +697,7 @@
 
         if (!proportionalMode) {
           // Absolute mode: constrain to keyframe bounds based on ORIGINAL positions
+          // The left edge can move left (before first keyframe), but cannot move right past it
           if (originalKeyframes.length > 0) {
             // Find earliest keyframe in original positions
             const earliestOriginalKfTime = Math.min(
@@ -704,7 +705,14 @@
             );
             const earliestKeyframeAbsoluteTime =
               originalClipStartTime + earliestOriginalKfTime;
-            newStart = Math.max(newStart, earliestKeyframeAbsoluteTime);
+
+            // Only constrain if moving the clip start to the right (shrinking from left)
+            // Allow moving left (extending before first keyframe)
+            if (newStart > originalClipStartTime) {
+              // Shrinking: don't allow start to go past the earliest keyframe
+              newStart = Math.min(newStart, earliestKeyframeAbsoluteTime);
+            }
+            // If newStart <= originalClipStartTime, we're extending left, which is always allowed
           }
         }
 
