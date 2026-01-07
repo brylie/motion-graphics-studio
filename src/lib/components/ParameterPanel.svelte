@@ -103,6 +103,12 @@
   function addKeyframe(paramName: string) {
     if (!selectedClip) return;
 
+    // Check if playhead is within clip bounds
+    if (localTime < 0 || localTime > selectedClip.duration) {
+      console.warn("Cannot add keyframe outside clip bounds");
+      return;
+    }
+
     const currentValue = selectedClip.parameters[paramName];
     if (typeof currentValue !== "number") {
       console.warn("Can only animate numeric parameters");

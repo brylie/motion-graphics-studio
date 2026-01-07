@@ -51,6 +51,32 @@ export const selectedClip = derived(
 // Timeline actions
 export const timelineActions = {
 	/**
+	 * Get the time bounds of all keyframes in a clip (min and max times)
+	 */
+	getKeyframeBounds(clipId: string): { min: number; max: number } | null {
+		let minTime = Infinity;
+		let maxTime = -Infinity;
+		let hasKeyframes = false;
+
+		const currentTimeline = get(timeline);
+		for (const track of currentTimeline.tracks) {
+			const clip = track.clips.find(c => c.id === clipId);
+			if (clip) {
+				for (const curve of clip.automation) {
+					for (const kf of curve.keyframes) {
+						hasKeyframes = true;
+						minTime = Math.min(minTime, kf.time);
+						maxTime = Math.max(maxTime, kf.time);
+					}
+				}
+				break;
+			}
+		}
+
+		return hasKeyframes ? { min: minTime, max: maxTime } : null;
+	},
+
+	/**
 	 * Add a new track
 	 */
 	addTrack() {
@@ -137,7 +163,7 @@ export const timelineActions = {
 	},
 
 	/**
-	 * Update clip position
+	 * Update clip position (keyframes stay in same relative position)
 	 */
 	updateClipTime(clipId: string, startTime: number) {
 		timeline.update(t => {
@@ -149,6 +175,7 @@ export const timelineActions = {
 			}));
 			return { ...t, tracks };
 		});
+		// Note: Keyframes are stored relative to clip start, so they move automatically
 	},
 
 	/**

@@ -1,3 +1,18 @@
+<!--
+  Timeline Component with Canvas-based Rendering
+  
+  Features:
+  - Drag clips to reposition
+  - Resize clips from left/right edges
+  - Click keyframes to select, drag to reposition
+  - Delete key removes selected keyframe or clip
+  - Scrub timeline by dragging in ruler
+  - Spacebar to play/pause
+  
+  Automation Modes (when resizing clips):
+  - ABSOLUTE MODE (default): Keyframes stay at fixed times, clip resize constrained to keyframe bounds
+  - PROPORTIONAL MODE (hold Alt/Option): Keyframes scale proportionally with clip duration (time-stretch)
+-->
 <script lang="ts">
   import { onMount } from "svelte";
   import {
@@ -33,6 +48,11 @@
   let dragStartTime = 0;
   let draggedClip: Clip | null = null;
   let draggedTrackIndex = -1;
+  let originalClipDuration = 0; // For proportional keyframe scaling
+  let originalClipStartTime = 0; // Original start time for resize
+  let originalKeyframes: Array<{ curve: string; time: number; value: number }> =
+    []; // Original keyframe positions
+  let altKeyPressed = false; // Track Alt/Option key state
   let hoveredClip: { clip: Clip; trackIndex: number } | null = null;
   let isDraggingOver = false;
   let dropTargetTrack = -1;
@@ -447,6 +467,26 @@
     ctx.fill();
   }
 
+  function drawModeIndicator(proportionalMode: boolean) {
+    if (!ctx || !isResizing) return;
+
+    // Draw mode indicator in top right
+    const text = proportionalMode ? "PROPORTIONAL MODE (Alt)" : "ABSOLUTE MODE";
+    ctx.font = "12px monospace";
+    ctx.textAlign = "right";
+
+    // Background
+    const textWidth = ctx.measureText(text).width;
+    ctx.fillStyle = proportionalMode
+      ? "rgba(255, 150, 0, 0.9)"
+      : "rgba(100, 150, 255, 0.9)";
+    ctx.fillRect(width - textWidth - 20, 5, textWidth + 15, 20);
+
+    // Text
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, width - 10, 19);
+  }
+
   function render() {
     if (!ctx) return;
 
@@ -458,6 +498,7 @@
     drawTracks();
     drawClips();
     drawPlayhead();
+    drawModeIndicator(altKeyPressed);
   }
 
   // Event handlers
@@ -486,7 +527,7 @@
       dragStartX = x;
       dragStartTime = keyframeAtPos.keyframeTime;
       viewActions.selectClip(keyframeAtPos.clip.id);
-      redraw();
+      render();
       return;
     }
 
@@ -509,6 +550,20 @@
         dragStartX = x;
         dragStartTime =
           handle === "left" ? clip.startTime : clip.startTime + clip.duration;
+        originalClipDuration = clip.duration; // Store for proportional scaling
+        originalClipStartTime = clip.startTime;
+
+        // Store original keyframe positions
+        originalKeyframes = [];
+        for (const curve of clip.automation) {
+          for (const kf of curve.keyframes) {
+            originalKeyframes.push({
+              curve: curve.parameterName,
+              time: kf.time,
+              value: kf.value,
+            });
+          }
+        }
       } else {
         isDragging = true;
         draggedClip = clip;
@@ -525,6 +580,9 @@
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Track Alt key state
+    altKeyPressed = e.altKey;
 
     // Handle scrubbing
     if (isScrubbing) {
@@ -591,16 +649,18 @@
           }
         }
       }
-      redraw();
+      render();
       return;
     }
 
     // Update hovered clip
     hoveredClip = getClipAtPosition(x, y);
 
-    // Update cursor
+    // Update cursor (add indicator for proportional mode)
     if (y < RULER_HEIGHT) {
       canvas.style.cursor = "pointer";
+    } else if (isResizing && e.altKey) {
+      canvas.style.cursor = "col-resize"; // Different cursor for proportional mode
     } else if (hoveredClip) {
       const handle = getResizeHandle(
         hoveredClip.clip,
@@ -627,16 +687,166 @@
       const snappedTime = snapTime(currentTime);
 
       if (resizeHandle === "left") {
-        const maxStart = draggedClip.startTime + draggedClip.duration - 0.1;
-        const newStart = Math.min(snappedTime, maxStart);
-        const newDuration =
-          draggedClip.startTime + draggedClip.duration - newStart;
+        // Calculate relative to ORIGINAL state
+        const originalEnd = originalClipStartTime + originalClipDuration;
+        const maxStart = originalEnd - 0.1;
+        let newStart = Math.min(snappedTime, maxStart);
+
+        // Check if Alt/Option key is held for proportional mode
+        const proportionalMode = e.altKey;
+
+        if (!proportionalMode) {
+          // Absolute mode: constrain to keyframe bounds based on ORIGINAL positions
+          if (originalKeyframes.length > 0) {
+            // Find earliest keyframe in original positions
+            const earliestOriginalKfTime = Math.min(...originalKeyframes.map(kf => kf.time));
+            const earliestKeyframeAbsoluteTime = originalClipStartTime + earliestOriginalKfTime;
+            newStart = Math.max(newStart, earliestKeyframeAbsoluteTime);
+          }
+        }
+
+        const newDuration = originalEnd - newStart;
+        const timeDelta = newStart - originalClipStartTime;
+
+        // Update keyframes based on mode
+        if (originalKeyframes.length > 0) {
+          const updates: Array<{
+            curve: string;
+            oldTime: number;
+            newTime: number;
+            value: number;
+          }> = [];
+
+          // Calculate new positions from ORIGINAL keyframes
+          for (const originalKf of originalKeyframes) {
+            let newTime: number;
+
+            if (proportionalMode) {
+              // Proportional mode: maintain relative position within clip
+              // e.g., keyframe at 50% of original clip should be at 50% of new clip
+              const relativePosition = originalKf.time / originalClipDuration;
+              newTime = relativePosition * newDuration;
+            } else {
+              // Absolute mode: maintain absolute timeline position
+              // originalAbsoluteTime = originalClipStartTime + originalKf.time
+              // newRelativeTime = originalAbsoluteTime - newStart
+              const absoluteTime = originalClipStartTime + originalKf.time;
+              newTime = absoluteTime - newStart;
+            }
+
+            updates.push({
+              curve: originalKf.curve,
+              oldTime: originalKf.time,
+              newTime: newTime,
+              value: originalKf.value,
+            });
+          }
+
+          // Clear all existing keyframes and replace with calculated ones
+          // Group updates by curve
+          const updatesByCurve = new Map<
+            string,
+            Array<{ time: number; value: number }>
+          >();
+          for (const update of updates) {
+            if (!updatesByCurve.has(update.curve)) {
+              updatesByCurve.set(update.curve, []);
+            }
+            updatesByCurve.get(update.curve)!.push({
+              time: update.newTime,
+              value: update.value,
+            });
+          }
+
+          // Clear and rebuild each curve
+          for (const [curveName, keyframes] of updatesByCurve) {
+            timelineActions.clearKeyframes(draggedClip.id, curveName);
+            for (const kf of keyframes) {
+              timelineActions.addKeyframe(
+                draggedClip.id,
+                curveName,
+                kf.time,
+                kf.value
+              );
+            }
+          }
+        }
+
         timelineActions.updateClipTime(draggedClip.id, newStart);
         timelineActions.updateClipDuration(draggedClip.id, newDuration);
       } else {
-        const minEnd = draggedClip.startTime + 0.1;
-        const newEnd = Math.max(snappedTime, minEnd);
-        const newDuration = newEnd - draggedClip.startTime;
+        // Right resize - calculate relative to ORIGINAL state
+        const minEnd = originalClipStartTime + 0.1;
+        let newEnd = Math.max(snappedTime, minEnd);
+
+        // Check if Alt/Option key is held for proportional mode
+        const proportionalMode = e.altKey;
+
+        if (!proportionalMode) {
+          // Absolute mode: constrain to keyframe bounds based on ORIGINAL positions
+          if (originalKeyframes.length > 0) {
+            // Find latest keyframe in original positions
+            const latestOriginalKfTime = Math.max(...originalKeyframes.map(kf => kf.time));
+            const latestKeyframeAbsoluteTime = originalClipStartTime + latestOriginalKfTime;
+            newEnd = Math.max(newEnd, latestKeyframeAbsoluteTime);
+          }
+        }
+
+        const newDuration = newEnd - originalClipStartTime;
+
+        // Update keyframes in proportional mode only
+        if (proportionalMode && originalKeyframes.length > 0) {
+          const scale = newDuration / originalClipDuration;
+          const updates: Array<{
+            curve: string;
+            oldTime: number;
+            newTime: number;
+            value: number;
+          }> = [];
+
+          // Proportional mode: scale all keyframes
+          for (const originalKf of originalKeyframes) {
+            updates.push({
+              curve: originalKf.curve,
+              oldTime: originalKf.time,
+              newTime: originalKf.time * scale,
+              value: originalKf.value,
+            });
+          }
+
+          // Clear all existing keyframes and replace with calculated ones
+          const updatesByCurve = new Map<
+            string,
+            Array<{ time: number; value: number }>
+          >();
+          for (const update of updates) {
+            if (!updatesByCurve.has(update.curve)) {
+              updatesByCurve.set(update.curve, []);
+            }
+            updatesByCurve.get(update.curve)!.push({
+              time: update.newTime,
+              value: update.value,
+            });
+          }
+
+          // Clear and rebuild each curve
+          for (const [curveName, keyframes] of updatesByCurve) {
+            timelineActions.clearKeyframes(draggedClip.id, curveName);
+            for (const kf of keyframes) {
+              timelineActions.addKeyframe(
+                draggedClip.id,
+                curveName,
+                kf.time,
+                kf.value
+              );
+            }
+          }
+        }
+
+        // Ensure clip stays at original start position (right resize shouldn't move clip)
+        if (draggedClip.startTime !== originalClipStartTime) {
+          timelineActions.updateClipTime(draggedClip.id, originalClipStartTime);
+        }
         timelineActions.updateClipDuration(draggedClip.id, newDuration);
       }
     }
@@ -652,6 +862,7 @@
     resizeHandle = null;
     draggedClip = null;
     draggedTrackIndex = -1;
+    originalKeyframes = []; // Clear stored keyframes
     render();
   }
 
