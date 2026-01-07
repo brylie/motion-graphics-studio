@@ -1,8 +1,9 @@
 import { writable, derived, get } from 'svelte/store';
-import type { Timeline, Track, Clip, TimelineViewState } from './types';
+import type { Timeline, Track, Clip, TimelineViewState } from '$lib/timeline/types';
 import { v4 as uuidv4 } from 'uuid';
 import { shaderLibrary } from './shaders';
 import { getDefaultValue } from '$lib/isf/parser';
+import { historyStore } from './historyStore';
 
 // Create initial timeline state
 function createInitialTimeline(): Timeline {
@@ -22,8 +23,8 @@ function createInitialTimeline(): Timeline {
 	};
 }
 
-// Timeline store
-export const timeline = writable<Timeline>(createInitialTimeline());
+// Timeline store with undo/redo capabilities
+export const timeline = historyStore<Timeline>(createInitialTimeline());
 
 // View state store
 export const timelineView = writable<TimelineViewState>({

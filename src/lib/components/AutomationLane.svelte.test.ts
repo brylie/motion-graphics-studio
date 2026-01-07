@@ -21,7 +21,8 @@ describe('AutomationLane', () => {
 			const canvas = container.querySelector('canvas');
 			
 			expect(canvas).toBeTruthy();
-			expect(canvas?.width).toBe(800);
+			// Width is now dynamic: clipDuration (10s) * pixelsPerSecond (50) = 500px
+			expect(canvas?.width).toBe(500);
 			expect(canvas?.height).toBe(40);
 		});
 

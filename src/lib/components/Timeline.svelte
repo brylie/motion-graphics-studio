@@ -24,6 +24,11 @@
   import { playback, playbackActions } from "$lib/stores/playback";
   import type { Clip, Track } from "$lib/timeline/types";
   import { moveKeyframe, findKeyframeIndex } from "$lib/utils/keyframes";
+  import {
+    renderAutomationLane,
+    hitTestKeyframe,
+    yToValue,
+  } from "$lib/utils/automationRendering";
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null;
@@ -176,18 +181,26 @@
 
           // Check if y is in this lane
           if (y >= laneY && y < laneY + AUTOMATION_LANE_HEIGHT) {
-            // Check each keyframe
-            for (const keyframe of curve.keyframes) {
-              const kfX = clipX + keyframe.time * $timelineView.pixelsPerSecond;
+            // Use shared hit-test utility
+            const hitKeyframe = hitTestKeyframe(
+              curve.keyframes,
+              x,
+              y,
+              clipX,
+              laneY,
+              AUTOMATION_LANE_HEIGHT,
+              $timelineView.pixelsPerSecond,
+              KEYFRAME_SIZE,
+              0,
+              1
+            );
 
-              // Hit test with some tolerance
-              if (Math.abs(x - kfX) < KEYFRAME_SIZE) {
-                return {
-                  clip,
-                  paramName: curve.parameterName,
-                  keyframeTime: keyframe.time,
-                };
-              }
+            if (hitKeyframe) {
+              return {
+                clip,
+                paramName: curve.parameterName,
+                keyframeTime: hitKeyframe.time,
+              };
             }
           }
 
@@ -350,7 +363,26 @@
         let laneY = y + TRACK_HEIGHT;
         clip.automation.forEach((curve) => {
           if (curve.keyframes.length > 0) {
-            drawAutomationLane(clip, curve.parameterName, x, laneY, clipWidth);
+            // Use shared rendering utility
+            renderAutomationLane({
+              ctx: ctx!,
+              keyframes: curve.keyframes,
+              x,
+              y: laneY,
+              width: clipWidth,
+              height: AUTOMATION_LANE_HEIGHT,
+              pixelsPerSecond: $timelineView.pixelsPerSecond,
+              minValue: 0,
+              maxValue: 1,
+              selectedKeyframeTime:
+                selectedKeyframe?.clipId === clip.id &&
+                selectedKeyframe?.paramName === curve.parameterName
+                  ? selectedKeyframe.time
+                  : null,
+              keyframeSize: KEYFRAME_SIZE,
+              parameterName: curve.parameterName,
+              keyframeShape: "diamond",
+            });
             laneY += AUTOMATION_LANE_HEIGHT;
           }
         });
@@ -365,84 +397,8 @@
     laneY: number,
     clipWidth: number
   ) {
-    if (!ctx) return;
-
-    // Lane background
-    ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(clipX, laneY, clipWidth, AUTOMATION_LANE_HEIGHT);
-
-    // Lane border
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(clipX, laneY, clipWidth, AUTOMATION_LANE_HEIGHT);
-
-    // Parameter name
-    ctx.fillStyle = "#888";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(paramName, clipX + 5, laneY + 12);
-
-    // Find automation curve
-    const curve = clip.automation.find((c) => c.parameterName === paramName);
-    if (!curve || curve.keyframes.length === 0) return;
-
-    // Draw curve line
-    ctx.strokeStyle = "#4a9eff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-
-    const minValue = 0;
-    const maxValue = 1; // Assume 0-1 range for now
-    const laneHeight = AUTOMATION_LANE_HEIGHT - 4;
-
-    curve.keyframes.forEach((keyframe, i) => {
-      const kfX = clipX + keyframe.time * $timelineView.pixelsPerSecond;
-      const normalizedValue =
-        (keyframe.value - minValue) / (maxValue - minValue);
-      const kfY = laneY + laneHeight - normalizedValue * laneHeight + 2;
-
-      if (i === 0) {
-        ctx!.moveTo(kfX, kfY);
-      } else {
-        ctx!.lineTo(kfX, kfY);
-      }
-    });
-    ctx.stroke();
-
-    // Draw keyframe diamonds
-    curve.keyframes.forEach((keyframe) => {
-      const kfX = clipX + keyframe.time * $timelineView.pixelsPerSecond;
-      const normalizedValue =
-        (keyframe.value - minValue) / (maxValue - minValue);
-      const kfY = laneY + laneHeight - normalizedValue * laneHeight + 2;
-
-      // Check if this keyframe is selected
-      const isSelected =
-        selectedKeyframe &&
-        selectedKeyframe.clipId === clip.id &&
-        selectedKeyframe.paramName === paramName &&
-        Math.abs(selectedKeyframe.time - keyframe.time) < 0.01;
-
-      ctx!.save();
-      ctx!.translate(kfX, kfY);
-      ctx!.rotate(Math.PI / 4);
-      ctx!.fillStyle = isSelected ? "#ff9933" : "#4a9eff";
-      ctx!.fillRect(
-        -KEYFRAME_SIZE / 2,
-        -KEYFRAME_SIZE / 2,
-        KEYFRAME_SIZE,
-        KEYFRAME_SIZE
-      );
-      ctx!.strokeStyle = isSelected ? "#ffcc00" : "#fff";
-      ctx!.lineWidth = isSelected ? 2 : 1;
-      ctx!.strokeRect(
-        -KEYFRAME_SIZE / 2,
-        -KEYFRAME_SIZE / 2,
-        KEYFRAME_SIZE,
-        KEYFRAME_SIZE
-      );
-      ctx!.restore();
-    });
+    // This function is now deprecated - using renderAutomationLane utility instead
+    // Kept for reference during migration
   }
 
   function drawPlayhead() {
@@ -1036,6 +992,27 @@
     canvas.width = width;
     canvas.height = height;
 
+    // Keyboard shortcut handler for undo/redo
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key === "z" && !e.shiftKey) {
+          // Undo: Cmd+Z / Ctrl+Z
+          e.preventDefault();
+          if (timeline.canUndo()) {
+            timeline.undo();
+          }
+        } else if ((e.key === "z" && e.shiftKey) || e.key === "y") {
+          // Redo: Cmd+Shift+Z / Ctrl+Shift+Z / Ctrl+Y
+          e.preventDefault();
+          if (timeline.canRedo()) {
+            timeline.redo();
+          }
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
     // Initial render
     render();
 
@@ -1047,6 +1024,7 @@
     ];
 
     return () => {
+      window.removeEventListener("keydown", handleKeyDown);
       unsubscribers.forEach((u) => u());
     };
   });

@@ -1,6 +1,11 @@
 <script lang="ts">
   import type { Keyframe } from "$lib/timeline/types";
   import { moveKeyframe, findKeyframeIndex } from "$lib/utils/keyframes";
+  import {
+    renderAutomationLane as renderAutomationLaneUtil,
+    hitTestKeyframe,
+    yToValue as yToValueUtil,
+  } from "$lib/utils/automationRendering";
 
   export let parameterName: string;
   export let keyframes: Keyframe[] = [];
@@ -10,6 +15,8 @@
   export let keyframeSize: number = 8;
   export let selectedKeyframeTime: number | null = null;
   export let readonly: boolean = false;
+  export let clipXOffset: number = 0; // X offset for positioning within timeline
+  export let canvasWidth: number | undefined = undefined; // Optional fixed width
 
   // Callbacks instead of events
   export let onkeyframeselect:
@@ -27,8 +34,8 @@
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null;
-  let width = 800;
-  let height = laneHeight;
+  $: width = canvasWidth ?? clipDuration * pixelsPerSecond;
+  $: height = laneHeight;
 
   let isDragging = false;
   let dragStartX = 0;
@@ -53,59 +60,21 @@
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Background
-    ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(0, 0, width, height);
-
-    // Border
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, width, height);
-
-    // Parameter label
-    ctx.fillStyle = "#888";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(parameterName, 5, 12);
-
-    if (keyframes.length === 0) return;
-
-    // Draw curve line
-    ctx.strokeStyle = "#4a9eff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-
-    keyframes.forEach((keyframe, i) => {
-      const kfX = keyframe.time * pixelsPerSecond;
-      const kfY = height - keyframe.value * (height - 4) - 2;
-
-      if (i === 0) {
-        ctx!.moveTo(kfX, kfY);
-      } else {
-        ctx!.lineTo(kfX, kfY);
-      }
-    });
-
-    ctx.stroke();
-
-    // Draw keyframes
-    keyframes.forEach((keyframe) => {
-      const kfX = keyframe.time * pixelsPerSecond;
-      const kfY = height - keyframe.value * (height - 4) - 2;
-
-      const isSelected =
-        selectedKeyframeTime !== null &&
-        Math.abs(keyframe.time - selectedKeyframeTime) < 0.01;
-
-      ctx!.fillStyle = isSelected ? "#ff9500" : "#4a9eff";
-      ctx!.beginPath();
-      ctx!.arc(kfX, kfY, keyframeSize / 2, 0, Math.PI * 2);
-      ctx!.fill();
-
-      // Outline
-      ctx!.strokeStyle = "#fff";
-      ctx!.lineWidth = 1;
-      ctx!.stroke();
+    // Use shared rendering utility for consistent appearance
+    renderAutomationLaneUtil({
+      ctx,
+      keyframes,
+      x: 0,
+      y: 0,
+      width,
+      height,
+      pixelsPerSecond,
+      minValue: 0,
+      maxValue: 1,
+      selectedKeyframeTime,
+      keyframeSize,
+      parameterName,
+      keyframeShape: "circle", // AutomationLane uses circles, Timeline uses diamonds
     });
   }
 
@@ -143,10 +112,8 @@
     const deltaTime = deltaX / pixelsPerSecond;
     const desiredTime = dragStartTime + deltaTime;
 
-    // Calculate value from Y delta (inverted: up = positive, down = negative)
-    const deltaY = dragStartY - y; // Inverted because canvas Y increases downward
-    const deltaValue = deltaY / height;
-    const desiredValue = dragStartValue + deltaValue;
+    // Calculate value from Y position using shared utility
+    const desiredValue = yToValueUtil(y, 0, height, 0, 1);
 
     try {
       const { time: clampedTime, value: clampedValue } = moveKeyframe(
@@ -186,19 +153,31 @@
   }
 
   function getKeyframeAtPosition(x: number, y: number): Keyframe | null {
-    for (const keyframe of keyframes) {
-      const kfX = keyframe.time * pixelsPerSecond;
-      const kfY = height - keyframe.value * (height - 4) - 2;
+    // Use shared hit-test utility
+    return hitTestKeyframe(
+      keyframes,
+      x,
+      y,
+      0,
+      0,
+      height,
+      pixelsPerSecond,
+      keyframeSize,
+      0,
+      1
+    );
+  }
 
-      const dx = x - kfX;
-      const dy = y - kfY;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance < keyframeSize) {
-        return keyframe;
-      }
-    }
-    return null;
+  // Export hit-test function for Timeline to use
+  export function hitTestKeyframeGlobal(
+    globalX: number,
+    globalY: number,
+    laneY: number
+  ): Keyframe | null {
+    // Convert global coordinates to local lane coordinates
+    const localX = globalX - clipXOffset;
+    const localY = globalY - laneY;
+    return getKeyframeAtPosition(localX, localY);
   }
 
   // Expose for testing
@@ -221,7 +200,7 @@ to ensure consistent behavior across * multiple automation lanes. */
     on:mouseup={handleMouseUp}
     on:mouseleave={handleMouseUp}
     style="display: block; cursor: {isDragging ? 'grabbing' : 'default'};"
-  />
+  ></canvas>
 </div>
 
 <style>
