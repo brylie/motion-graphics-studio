@@ -103,7 +103,7 @@
   setContext("dragDropStore", mockDragDropStore);
   setContext("shaderLibraryActions", mockShaderLibraryActions);
   setContext("timelineActions", mockTimelineActions);
-  setContext("dragDropStore", mockDragDropStore);
+  setContext("dragDropActions", mockDragDropActions);
 </script>
 
 <div style="width: 100%; max-width: 400px; height: 600px; background: #1f2937;">
