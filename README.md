@@ -1,17 +1,21 @@
-# ISF Timeline Sequencer
+# Motion Graphics Studio
 
-A timeline-based sequencer for Interactive Shader Format (ISF) shaders built with SvelteKit and WebGL2.
+A browser-based motion graphics studio with timeline-based sequencing for Interactive Shader Format (ISF) shaders. Built with SvelteKit, TypeScript, and WebGL2.
 
 ## Features
 
-- **Canvas-based Timeline**: Drag and resize shader clips with intuitive mouse controls
-- **Track-based Composition**: Layer multiple shader tracks with proper blending
+- **SVG-based Timeline**: Professional timeline editor with grid layout and proper coordinate system
+- **Track-based Composition**: Layer multiple shader tracks with proper blending and visual feedback
 - **ISF Shader Support**: Full support for ISF 2.0 format including generators and effects
-- **Real-time Preview**: Hardware-accelerated WebGL2 rendering
-- **Playback Controls**: Play, pause, stop, and loop functionality
-- **Zoom & Pan**: Adjustable timeline zoom with mouse wheel
-- **Parameter Automation**: Animate shader parameters over time (foundation in place)
-- **Shader Library**: Browse and drag shaders onto the timeline
+- **Real-time Preview**: Hardware-accelerated WebGL2 rendering at 1920x1080 with real-time composition
+- **Playback Controls**: Play, pause, stop, loop functionality with real-time scrubbing
+- **Zoom & Pan**: Adjustable timeline zoom with mouse wheel (Ctrl/Cmd + wheel to zoom)
+- **Parameter Automation**: Full keyframe animation with proportional and absolute resize modes
+- **Automation Lanes**: Visual automation curve editing with draggable keyframes
+- **Shader Library**: Browse, search, filter, and drag shaders onto the timeline
+- **Drag & Drop**: Drag shaders from library to tracks, move clips between tracks
+- **Clip Resizing**: Resize clips with handles, with intelligent keyframe handling
+- **Parameter Panel**: Edit shader parameters and manage keyframes for selected clips
 
 ## Project Structure
 
@@ -28,14 +32,23 @@ src/
 │   ├── composition/
 │   │   └── renderer.ts       # Multi-track composition renderer
 │   ├── stores/
-│   │   ├── timeline.ts       # Timeline state management
-│   │   ├── playback.ts       # Playback state management
-│   │   └── shaders.ts        # Shader library state
+│   │   ├── timeline.ts       # Timeline state & actions
+│   │   ├── playback.ts       # Playback state & actions
+│   │   ├── shaders.ts        # Shader library state
+│   │   ├── dragDrop.ts       # Drag & drop state management
+│   │   └── historyStore.ts   # Undo/redo history (foundation)
+│   ├── utils/
+│   │   └── keyframes.ts      # Keyframe interpolation utilities
 │   └── components/
-│       ├── Timeline.svelte   # Canvas timeline editor
-│       ├── Preview.svelte    # WebGL preview window
-│       ├── ShaderLibrary.svelte  # Shader browser
-│       └── PlaybackControls.svelte  # Transport controls
+│       ├── Timeline.svelte         # Main timeline container
+│       ├── TimelineRuler.svelte    # Time ruler with scrubbing
+│       ├── TimelineTrack.svelte    # Individual track component
+│       ├── TimelineClip.svelte     # Draggable/resizable clip
+│       ├── AutomationLane.svelte   # Keyframe curve editor
+│       ├── Preview.svelte          # WebGL preview window
+│       ├── ShaderLibrary.svelte    # Shader browser panel
+│       ├── PlaybackControls.svelte # Transport controls
+│       └── ParameterPanel.svelte   # Parameter editor panel
 └── routes/
     └── +page.svelte          # Main application layout
 
@@ -157,12 +170,16 @@ You can preview the production build with `npm run preview`.
 
 ### Timeline Controls
 
-- **Click and Drag**: Move clips along the timeline
-- **Drag Edges**: Resize clip duration
+- **Click Clip**: Select clip (shows resize handles and highlights)
+- **Drag Clip**: Move clip along timeline or between tracks
+- **Drag Resize Handles**: Resize clip duration (left/right edges when selected)
+- **Hold Alt While Resizing**: Proportional mode (scales keyframes proportionally)
+- **Default Resize**: Absolute mode (keyframes stay at absolute time positions)
 - **Click Ruler**: Seek to time position
+- **Drag Ruler**: Scrub through timeline
 - **Mouse Wheel**: Scroll timeline horizontally
-- **Ctrl/Cmd + Wheel**: Zoom timeline
-- **Click Clip**: Select clip (highlights with blue border)
+- **Ctrl/Cmd + Wheel**: Zoom timeline in/out
+- **Esc During Drag**: Cancel drag operation
 
 ### Playback Controls
 
@@ -182,9 +199,12 @@ You can preview the production build with `npm run preview`.
 ### Parameter Panel
 
 - **Clip Info**: View selected clip's shader, start time, duration, and alpha
-- **Shader Parameters**: View and edit shader parameters
-- **Image Selection**: For Image shader, select images from your local filesystem
-- **Automation**: View automation curves and keyframes
+- **Shader Parameters**: Edit shader parameters with appropriate controls (sliders, color pickers, etc.)
+- **Parameter Values**: Shows interpolated value at current playhead position
+- **Add Keyframe**: Click "Add Keyframe" to create automation point at current time
+- **Remove Keyframe**: Select keyframe on automation lane and delete
+- **Image Selection**: For Image shader, select images from your local filesystem with preview
+- **Automation Curves**: Visual curves show parameter changes over time
 
 ### Track Management
 
@@ -241,41 +261,50 @@ void main() {
 ## Roadmap
 
 ### Completed ✅
-- SvelteKit project setup
+- SvelteKit project setup with TypeScript
 - ISF parser and WebGL2 renderer
 - Timeline data structures and state management
-- Canvas-based timeline editor with drag/resize
-- Playback controls
-- Shader library browser
-- Multi-track composition renderer
+- SVG-based timeline editor with proper coordinate system
+- Clip selection, dragging, and resizing with visual feedback
+- Drag-and-drop from shader library to timeline
+- Move clips between tracks
+- Playback controls with scrubbing
+- Shader library browser with search and category filtering
+- Multi-track composition renderer with blending
+- Parameter automation system with keyframes
+- Automation lanes with visual curve editing
+- Proportional and absolute resize modes for keyframes
+- Parameter panel with live value display
 - Comprehensive test coverage (unit, component, e2e)
-- Storybook for visual testing
-- Keyframe automation system with proportional/absolute resize modes
+- Storybook for all components
+- Image parameter support with file selection
 
 ### In Progress 🚧
-- Audio integration with Tone.js
-- Parameter automation curves UI
-- Drag-and-drop from shader library
+- Undo/redo system (foundation in place)
+- Track mute/solo functionality (buttons present, wiring needed)
 
 ### Planned 📋
+- Audio integration with Tone.js
 - Audio reactivity (FFT analysis)
-- Bezier curve automation
-- Track mute/solo UI
+- Bezier curve automation (currently linear)
 - Export to video
 - Keyboard shortcuts
-- Undo/redo
-- Save/load projects
+- Save/load projects (JSON format)
+- Multi-select and bulk operations
+- Copy/paste clips
+- Track reordering
 
 ## Technology Stack
 
 - **SvelteKit**: Application framework
 - **TypeScript**: Type-safe development
 - **WebGL2**: Hardware-accelerated rendering
-- **Tone.js**: Web Audio API wrapper
-- **HTML Canvas**: Timeline interface
+- **Svelte**: Reactive UI components
+- **Vite**: Fast build tool and dev server
 - **Vitest**: Unit and component testing
 - **Playwright**: End-to-end testing
 - **Storybook**: Component development and visual testing
+- **Tailwind CSS**: Styling (via Vite plugin)
 
 ## License
 
