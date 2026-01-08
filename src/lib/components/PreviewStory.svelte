@@ -23,15 +23,7 @@
       DESCRIPTION: "A colorful plasma effect",
       CREDIT: "Sample",
       CATEGORIES: ["Generator"],
-      INPUTS: [
-        {
-          NAME: "speed",
-          TYPE: "float",
-          DEFAULT: 1.0,
-          MIN: 0.0,
-          MAX: 10.0,
-        },
-      ],
+      INPUTS: [],
     },
   };
 
@@ -49,9 +41,7 @@
                 shaderName: "Plasma",
                 startTime: 0,
                 duration: 10,
-                parameters: {
-                  speed: 1.5,
-                },
+                parameters: {},
                 automation: [],
                 alpha: 1.0,
               },
