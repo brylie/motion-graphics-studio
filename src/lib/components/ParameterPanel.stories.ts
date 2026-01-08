@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/svelte';
-import ParameterPanel from './ParameterPanel.svelte';
+import ParameterPanelStory from './ParameterPanelStory.svelte';
 
 const meta = {
 	title: 'Components/ParameterPanel',
-	component: ParameterPanel,
+	component: ParameterPanelStory,
 	parameters: {
 		layout: 'padded',
 		docs: {
@@ -13,14 +13,16 @@ const meta = {
 		}
 	},
 	tags: ['autodocs']
-} satisfies Meta<ParameterPanel>;
+} satisfies Meta<ParameterPanelStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
-
 export const NoSelection: Story = {
+	args: {
+		selectedClipId: null,
+		hasClip: false
+	},
 	parameters: {
 		docs: {
 			description: {
@@ -31,6 +33,10 @@ export const NoSelection: Story = {
 };
 
 export const WithClipSelected: Story = {
+	args: {
+		selectedClipId: 'clip-1',
+		hasClip: true
+	},
 	parameters: {
 		docs: {
 			description: {

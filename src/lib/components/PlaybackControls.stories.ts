@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/svelte';
-import PlaybackControls from './PlaybackControls.svelte';
+import PlaybackControlsStory from './PlaybackControlsStory.svelte';
 
 const meta = {
 	title: 'Components/PlaybackControls',
-	component: PlaybackControls,
+	component: PlaybackControlsStory,
 	parameters: {
 		layout: 'padded',
 		docs: {
@@ -13,28 +13,54 @@ const meta = {
 		}
 	},
 	tags: ['autodocs']
-} satisfies Meta<PlaybackControls>;
+} satisfies Meta<PlaybackControlsStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
-
-export const Playing: Story = {
+export const Stopped: Story = {
+	args: {
+		isPlaying: false,
+		currentTime: 0,
+		loop: false,
+		pixelsPerSecond: 50
+	},
 	parameters: {
 		docs: {
 			description: {
-				story: 'Interact with the play button to toggle playback state.'
+				story: 'Controls in stopped state at the beginning of the timeline.'
+			}
+		}
+	}
+};
+
+export const Playing: Story = {
+	args: {
+		isPlaying: true,
+		currentTime: 5.5,
+		loop: false,
+		pixelsPerSecond: 50
+	},
+	parameters: {
+		docs: {
+			description: {
+				story: 'Controls when playback is active - play button shows pause icon.'
 			}
 		}
 	}
 };
 
 export const WithLoop: Story = {
+	args: {
+		isPlaying: false,
+		currentTime: 2.3,
+		loop: true,
+		pixelsPerSecond: 50
+	},
 	parameters: {
 		docs: {
 			description: {
-				story: 'Toggle the loop button to enable continuous playback.'
+				story: 'Controls with loop enabled - loop button is highlighted.'
 			}
 		}
 	}

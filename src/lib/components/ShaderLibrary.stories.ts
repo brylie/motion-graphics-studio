@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/svelte';
-import ShaderLibrary from './ShaderLibrary.svelte';
+import ShaderLibraryStory from './ShaderLibraryStory.svelte';
 
 const meta = {
 	title: 'Components/ShaderLibrary',
-	component: ShaderLibrary,
+	component: ShaderLibraryStory,
 	parameters: {
 		layout: 'padded',
 		docs: {
@@ -13,16 +13,33 @@ const meta = {
 		}
 	},
 	tags: ['autodocs']
-} satisfies Meta<ShaderLibrary>;
+} satisfies Meta<ShaderLibraryStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const FewShaders: Story = {
+	args: {
+		shaderCount: 3
+	},
+	parameters: {
+		docs: {
+			description: {
+				story: 'Library with a small collection of shaders.'
+			}
+		}
+	}
+};
 
-export const WithSearch: Story = {
-	play: async ({ canvasElement }) => {
-		// This story could demonstrate the search functionality
-		// but requires interaction testing setup
+export const WithShaders: Story = {
+	args: {
+		shaderCount: 8
+	},
+	parameters: {
+		docs: {
+			description: {
+				story: 'Library populated with multiple available shaders for drag-and-drop.'
+			}
+		}
 	}
 };

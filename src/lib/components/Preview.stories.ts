@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/svelte';
-import Preview from './Preview.svelte';
+import PreviewStory from './PreviewStory.svelte';
 
 const meta = {
 	title: 'Components/Preview',
-	component: Preview,
+	component: PreviewStory,
 	parameters: {
 		layout: 'fullscreen',
 		docs: {
@@ -13,18 +13,32 @@ const meta = {
 		}
 	},
 	tags: ['autodocs']
-} satisfies Meta<Preview>;
+} satisfies Meta<PreviewStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
-
-export const Rendering: Story = {
+export const Empty: Story = {
+	args: {
+		hasClips: false
+	},
 	parameters: {
 		docs: {
 			description: {
-				story: 'The preview component automatically initializes WebGL and begins rendering the timeline composition.'
+				story: 'Preview canvas with an empty timeline showing black screen.'
+			}
+		}
+	}
+};
+
+export const WithClip: Story = {
+	args: {
+		hasClips: true
+	},
+	parameters: {
+		docs: {
+			description: {
+				story: 'Preview canvas rendering a shader clip from the timeline.'
 			}
 		}
 	}
