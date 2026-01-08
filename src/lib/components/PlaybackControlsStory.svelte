@@ -27,12 +27,13 @@
     loopEnd: 60,
   });
 
-  // Create formatted time derived store
+  // Create formatted time derived store matching the format from $lib/stores/playback
   const mockFormattedTime = derived(mockPlayback, ($pb) => {
-    const mins = Math.floor($pb.currentTime / 60);
-    const secs = Math.floor($pb.currentTime % 60);
-    const frames = Math.floor(($pb.currentTime % 1) * 30);
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}:${frames.toString().padStart(2, "0")}`;
+    const time = $pb.currentTime;
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    const cs = Math.floor((time % 1) * 100); // centiseconds
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}.${cs.toString().padStart(2, "0")}`;
   });
 
   // Create mock timeline view store

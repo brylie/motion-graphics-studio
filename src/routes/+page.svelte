@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { setContext, onMount } from "svelte";
+  import { get } from "svelte/store";
   import PlaybackControls from "$lib/components/PlaybackControls.svelte";
   import Timeline from "$lib/components/Timeline.svelte";
   import ShaderLibrary from "$lib/components/ShaderLibrary.svelte";
@@ -8,10 +10,20 @@
     timeline,
     timelineActions,
     timelineView,
+    viewActions,
   } from "$lib/stores/timeline";
-  import { playback, playbackActions } from "$lib/stores/playback";
-  import { onMount } from "svelte";
-  import { get } from "svelte/store";
+  import {
+    playback,
+    playbackActions,
+    formattedTime,
+  } from "$lib/stores/playback";
+
+  // Set contexts for components that use getContext
+  setContext("playback", playback);
+  setContext("formattedTime", formattedTime);
+  setContext("timelineView", timelineView);
+  setContext("playbackActions", playbackActions);
+  setContext("viewActions", viewActions);
 
   onMount(() => {
     // Expose stores for e2e testing

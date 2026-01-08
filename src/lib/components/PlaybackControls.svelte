@@ -1,10 +1,23 @@
 <script lang="ts">
-  import {
-    playback,
-    playbackActions,
-    formattedTime,
-  } from "$lib/stores/playback";
-  import { timelineView, viewActions } from "$lib/stores/timeline";
+  import { getContext } from "svelte";
+  import type { Readable } from "svelte/store";
+  import type { PlaybackState, TimelineViewState } from "$lib/timeline/types";
+
+  // Get stores and actions from context
+  const playback = getContext<Readable<PlaybackState>>("playback");
+  const formattedTime = getContext<Readable<string>>("formattedTime");
+  const timelineView = getContext<Readable<TimelineViewState>>("timelineView");
+
+  const playbackActions = getContext<{
+    togglePlay: () => void;
+    stop: () => void;
+    toggleLoop: () => void;
+  }>("playbackActions");
+
+  const viewActions = getContext<{
+    setZoom: (zoom: number) => void;
+    setScroll: (scroll: number) => void;
+  }>("viewActions");
 
   function handlePlayPause() {
     playbackActions.togglePlay();
