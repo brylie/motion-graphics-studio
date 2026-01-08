@@ -8,7 +8,7 @@ const meta = {
 		layout: 'fullscreen'
 	},
 	tags: ['autodocs']
-} satisfies Meta<KeyframeDemo>;
+} satisfies Meta<typeof KeyframeDemo>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

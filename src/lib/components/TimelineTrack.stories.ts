@@ -13,7 +13,7 @@ const meta = {
 		}
 	},
 	tags: ['autodocs']
-} satisfies Meta<TimelineTrackStory>;
+} satisfies Meta<typeof TimelineTrackStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

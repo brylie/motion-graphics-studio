@@ -31,7 +31,7 @@ const meta = {
 			description: 'Whether the clip is currently selected'
 		}
 	}
-} satisfies Meta<TimelineClipStory>;
+} satisfies Meta<typeof TimelineClipStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

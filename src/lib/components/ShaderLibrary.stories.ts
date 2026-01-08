@@ -13,7 +13,7 @@ const meta = {
 		}
 	},
 	tags: ['autodocs']
-} satisfies Meta<ShaderLibraryStory>;
+} satisfies Meta<typeof ShaderLibraryStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

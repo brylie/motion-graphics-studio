@@ -23,7 +23,7 @@ const meta = {
 			description: 'Zoom level - pixels per second'
 		}
 	}
-} satisfies Meta<TimelineRuler>;
+} satisfies Meta<typeof TimelineRuler>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

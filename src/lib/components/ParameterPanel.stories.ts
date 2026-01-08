@@ -13,7 +13,7 @@ const meta = {
 		}
 	},
 	tags: ['autodocs']
-} satisfies Meta<ParameterPanelStory>;
+} satisfies Meta<typeof ParameterPanelStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

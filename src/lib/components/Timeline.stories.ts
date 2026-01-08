@@ -9,7 +9,7 @@ const meta = {
 	parameters: {
 		layout: 'fullscreen',
 	},
-} satisfies Meta<Timeline>;
+} satisfies Meta<typeof Timeline>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
