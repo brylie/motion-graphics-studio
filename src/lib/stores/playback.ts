@@ -91,14 +91,13 @@ export const playbackActions = {
 	}
 };
 
+// Format time as MM:SS.CC (minutes:seconds.centiseconds)
+export function formatTime(time: number): string {
+	const minutes = Math.floor(time / 60);
+	const seconds = Math.floor(time % 60);
+	const ms = Math.floor((time % 1) * 100);
+	return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+}
+
 // Derived store for formatted time display
-export const formattedTime = derived(
-	playback,
-	($playback) => {
-		const time = $playback.currentTime;
-		const minutes = Math.floor(time / 60);
-		const seconds = Math.floor(time % 60);
-		const ms = Math.floor((time % 1) * 100);
-		return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-	}
-);
+export const formattedTime = derived(playback, ($playback) => formatTime($playback.currentTime));

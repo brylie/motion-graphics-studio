@@ -13,7 +13,7 @@ const meta = {
 		}
 	},
 	tags: ['autodocs']
-} satisfies Meta<AutomationLaneStory>;
+} satisfies Meta<typeof AutomationLaneStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

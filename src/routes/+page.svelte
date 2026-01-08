@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { setContext, onMount } from "svelte";
+  import { get } from "svelte/store";
   import PlaybackControls from "$lib/components/PlaybackControls.svelte";
   import Timeline from "$lib/components/Timeline.svelte";
   import ShaderLibrary from "$lib/components/ShaderLibrary.svelte";
@@ -8,10 +10,27 @@
     timeline,
     timelineActions,
     timelineView,
+    viewActions,
   } from "$lib/stores/timeline";
-  import { playback, playbackActions } from "$lib/stores/playback";
-  import { onMount } from "svelte";
-  import { get } from "svelte/store";
+  import {
+    playback,
+    playbackActions,
+    formattedTime,
+  } from "$lib/stores/playback";
+  import {
+    PLAYBACK_CONTEXT,
+    FORMATTED_TIME_CONTEXT,
+    TIMELINE_VIEW_CONTEXT,
+    PLAYBACK_ACTIONS_CONTEXT,
+    VIEW_ACTIONS_CONTEXT,
+  } from "$lib/constants/contexts";
+
+  // Set contexts for components that use getContext
+  setContext(PLAYBACK_CONTEXT, playback);
+  setContext(FORMATTED_TIME_CONTEXT, formattedTime);
+  setContext(TIMELINE_VIEW_CONTEXT, timelineView);
+  setContext(PLAYBACK_ACTIONS_CONTEXT, playbackActions);
+  setContext(VIEW_ACTIONS_CONTEXT, viewActions);
 
   onMount(() => {
     // Expose stores for e2e testing
@@ -53,10 +72,7 @@
       if (e.code === "Delete" || e.code === "Backspace") {
         e.preventDefault();
 
-        const view = timelineView;
-        let currentView: any;
-        const unsubscribe = view.subscribe((v) => (currentView = v));
-        unsubscribe();
+        const currentView = get(timelineView);
 
         // Priority 1: Delete selected keyframe
         if (currentView.selectedKeyframe) {
