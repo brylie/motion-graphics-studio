@@ -72,10 +72,7 @@
       if (e.code === "Delete" || e.code === "Backspace") {
         e.preventDefault();
 
-        const view = timelineView;
-        let currentView: any;
-        const unsubscribe = view.subscribe((v) => (currentView = v));
-        unsubscribe();
+        const currentView = get(timelineView);
 
         // Priority 1: Delete selected keyframe
         if (currentView.selectedKeyframe) {
