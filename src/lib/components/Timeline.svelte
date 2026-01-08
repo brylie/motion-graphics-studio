@@ -438,44 +438,6 @@
     }
   }
 
-  // Calculate preview rectangle position and dimensions
-  $: previewStyle = (() => {
-    if (
-      !$dragDropStore.previewPosition.visible ||
-      !$dragDropStore.previewPosition.trackId
-    ) {
-      return "display: none;";
-    }
-
-    const trackIndex = $timeline.tracks.findIndex(
-      (t) => t.id === $dragDropStore.previewPosition.trackId
-    );
-
-    if (trackIndex === -1) return "display: none;";
-
-    const left =
-      $dragDropStore.previewPosition.time * $timelineView.pixelsPerSecond;
-    const width = $dragDropStore.duration * $timelineView.pixelsPerSecond;
-
-    // Calculate top position by summing heights of all previous tracks
-    let top = 0;
-    for (let i = 0; i < trackIndex; i++) {
-      const track = $timeline.tracks[i];
-      // Count automation parameters with keyframes
-      const automationCount = new Set(
-        track.clips.flatMap((clip) =>
-          clip.automation
-            .filter((curve) => curve.keyframes.length > 0)
-            .map((curve) => curve.parameterName)
-        )
-      ).size;
-      const trackHeight = 28 + automationCount * 50; // TRACK_HEIGHT + AUTOMATION_LANE_HEIGHT
-      top += trackHeight;
-    }
-
-    return `left: ${left}px; top: ${top}px; width: ${width}px; height: 28px; display: block;`;
-  })();
-
   onMount(() => {
     // Timeline is now ready
   });
@@ -526,7 +488,7 @@
       {/each}
     </div>
 
-    <!-- Timeline content area overlay (for playhead and preview visuals only) -->
+    <!-- Timeline content area overlay (for playhead visual only) -->
     <div class="timeline-content-overlay" bind:this={timelineContentArea}>
       <!-- Playhead -->
       <div
@@ -534,11 +496,6 @@
         style="left: {playheadPosition}px;"
         aria-label="Current time: {$playback.currentTime.toFixed(2)}s"
       ></div>
-
-      <!-- Clip Preview Rectangle -->
-      {#if $dragDropStore.previewPosition.visible}
-        <div class="clip-preview" style={previewStyle}></div>
-      {/if}
     </div>
   </div>
 </div>
@@ -622,17 +579,5 @@
 
   .mode-indicator.absolute {
     background: rgba(59, 130, 246, 0.95);
-  }
-
-  .clip-preview {
-    position: absolute;
-    background: rgba(59, 130, 246, 0.3);
-    border: 2px dashed rgba(59, 130, 246, 0.8);
-    border-radius: 3px;
-    pointer-events: none;
-    z-index: 50;
-    transition:
-      left 0.05s ease,
-      top 0.05s ease;
   }
 </style>

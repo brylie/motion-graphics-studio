@@ -98,6 +98,15 @@
     isDragOver = false;
   }
 
+  // Check if preview should be shown for this track
+  $: showPreview =
+    $dragDropStore.previewPosition.visible &&
+    $dragDropStore.previewPosition.trackId === track.id;
+
+  // Calculate preview position within this track
+  $: previewLeft = $dragDropStore.previewPosition.time * pixelsPerSecond;
+  $: previewWidth = $dragDropStore.duration * pixelsPerSecond;
+
   function handleDragEnter(e: DragEvent) {
     e.preventDefault();
     isDragOver = true;
@@ -174,6 +183,14 @@
           on:resizestart={handleClipResizeStart}
         />
       {/each}
+
+      <!-- Drag preview for this track -->
+      {#if showPreview}
+        <div
+          class="clip-preview"
+          style="left: {previewLeft}px; width: {previewWidth}px;"
+        ></div>
+      {/if}
     </div>
 
     <!-- Automation lanes -->
@@ -299,6 +316,17 @@
     right: 0;
     top: 0;
     width: 100%;
+  }
+
+  .clip-preview {
+    position: absolute;
+    top: 2px;
+    height: calc(100% - 4px);
+    background: rgba(59, 130, 246, 0.3);
+    border: 2px dashed rgba(59, 130, 246, 0.8);
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 5;
   }
 
   .automation-lanes {
