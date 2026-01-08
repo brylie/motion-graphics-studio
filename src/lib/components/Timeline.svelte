@@ -23,11 +23,11 @@
   let originalKeyframes: Array<{ curve: string; time: number; value: number }> =
     [];
   let altKeyPressed = false;
+  let timelineContentArea: HTMLDivElement;
+  let tracksContainer: HTMLDivElement;
 
-  const LABEL_WIDTH = 80; // Must match TimelineTrack and TimelineRuler label column width
   $: totalWidth = $timeline.duration * $timelineView.pixelsPerSecond;
-  $: playheadPosition =
-    LABEL_WIDTH + $playback.currentTime * $timelineView.pixelsPerSecond;
+  $: playheadPosition = $playback.currentTime * $timelineView.pixelsPerSecond;
 
   function snapTime(time: number, gridSize: number = 0.1): number {
     return Math.round(time / gridSize) * gridSize;
@@ -99,9 +99,10 @@
     altKeyPressed = e.altKey;
 
     if (isResizing && draggedClipId && resizeHandle) {
-      const rect = timelineContainer.getBoundingClientRect();
+      if (!timelineContentArea) return;
+      const rect = timelineContentArea.getBoundingClientRect();
       const scrollLeft = timelineContainer?.scrollLeft || 0;
-      const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
+      const relativeX = e.clientX - rect.left + scrollLeft;
       const currentTime = relativeX / $timelineView.pixelsPerSecond;
       const snappedTime = snapTime(currentTime);
 
@@ -265,10 +266,11 @@
 
     // Update preview position
     const trackId = getTrackAtPosition(e.clientY);
-    if (trackId) {
-      const rect = timelineContainer.getBoundingClientRect();
+    if (trackId && tracksContainer) {
+      const rect = tracksContainer.getBoundingClientRect();
       const scrollLeft = timelineContainer?.scrollLeft || 0;
-      const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
+      // Calculate relative to tracks container, accounting for the 80px label column
+      const relativeX = e.clientX - rect.left + scrollLeft - 80;
       const dropTime = snapTime(
         Math.max(0, relativeX / $timelineView.pixelsPerSecond)
       );
@@ -368,9 +370,10 @@
           return;
         }
 
-        const rect = timelineContainer.getBoundingClientRect();
+        if (!tracksContainer) return;
+        const rect = tracksContainer.getBoundingClientRect();
         const scrollLeft = timelineContainer?.scrollLeft || 0;
-        const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
+        const relativeX = e.clientX - rect.left + scrollLeft - 80;
         const dropTime = snapTime(
           Math.max(0, relativeX / $timelineView.pixelsPerSecond)
         );
@@ -402,9 +405,10 @@
           return;
         }
 
-        const rect = timelineContainer.getBoundingClientRect();
+        if (!tracksContainer) return;
+        const rect = tracksContainer.getBoundingClientRect();
         const scrollLeft = timelineContainer?.scrollLeft || 0;
-        const relativeX = e.clientX - rect.left + scrollLeft - LABEL_WIDTH;
+        const relativeX = e.clientX - rect.left + scrollLeft - 80;
         const dropTime = snapTime(
           Math.max(0, relativeX / $timelineView.pixelsPerSecond)
         );
@@ -450,7 +454,6 @@
     if (trackIndex === -1) return "display: none;";
 
     const left =
-      LABEL_WIDTH +
       $dragDropStore.previewPosition.time * $timelineView.pixelsPerSecond;
     const width = $dragDropStore.duration * $timelineView.pixelsPerSecond;
 
@@ -483,27 +486,12 @@
   class="timeline-container"
   bind:this={timelineContainer}
   on:wheel={handleWheel}
-  on:dragover={handleDragOver}
-  on:dragleave={handleDragLeave}
-  on:drop={handleDrop}
   on:keydown={handleKeyDown}
   role="application"
   aria-label="Timeline"
   tabindex="0"
 >
-  <div class="timeline-content" style="width: {totalWidth}px;">
-    <TimelineRuler
-      duration={$timeline.duration}
-      pixelsPerSecond={$timelineView.pixelsPerSecond}
-    />
-
-    <!-- Playhead -->
-    <div
-      class="playhead"
-      style="left: {playheadPosition}px;"
-      aria-label="Current time: {$playback.currentTime.toFixed(2)}s"
-    ></div>
-
+  <div class="timeline-grid">
     <!-- Mode indicator -->
     {#if isResizing && altKeyPressed}
       <div class="mode-indicator proportional">PROPORTIONAL MODE (Alt)</div>
@@ -511,13 +499,19 @@
       <div class="mode-indicator absolute">ABSOLUTE MODE</div>
     {/if}
 
-    <!-- Clip Preview Rectangle -->
-    {#if $dragDropStore.previewPosition.visible}
-      <div class="clip-preview" style={previewStyle}></div>
-    {/if}
+    <TimelineRuler
+      duration={$timeline.duration}
+      pixelsPerSecond={$timelineView.pixelsPerSecond}
+    />
 
     <!-- Tracks -->
-    <div class="tracks-container">
+    <div
+      class="tracks-container"
+      bind:this={tracksContainer}
+      on:dragover={handleDragOver}
+      on:dragleave={handleDragLeave}
+      on:drop={handleDrop}
+    >
       {#each $timeline.tracks as track (track.id)}
         <TimelineTrack
           {track}
@@ -530,6 +524,21 @@
           on:keyframemove={handleKeyframeMove}
         />
       {/each}
+    </div>
+
+    <!-- Timeline content area overlay (for playhead and preview visuals only) -->
+    <div class="timeline-content-overlay" bind:this={timelineContentArea}>
+      <!-- Playhead -->
+      <div
+        class="playhead"
+        style="left: {playheadPosition}px;"
+        aria-label="Current time: {$playback.currentTime.toFixed(2)}s"
+      ></div>
+
+      <!-- Clip Preview Rectangle -->
+      {#if $dragDropStore.previewPosition.visible}
+        <div class="clip-preview" style={previewStyle}></div>
+      {/if}
     </div>
   </div>
 </div>
@@ -544,15 +553,31 @@
     cursor: default;
   }
 
-  .timeline-content {
-    position: relative;
+  .timeline-grid {
+    display: flex;
+    flex-direction: column;
     min-height: 100%;
+    position: relative;
   }
 
   .tracks-container {
-    display: grid;
-    grid-auto-rows: minmax(60px, auto);
-    gap: 0;
+    position: relative;
+    flex: 1;
+    min-height: 100px;
+  }
+
+  .timeline-content-overlay {
+    position: absolute;
+    top: 30px;
+    left: 80px;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  .timeline-content-overlay > * {
+    pointer-events: auto;
   }
 
   .playhead {
