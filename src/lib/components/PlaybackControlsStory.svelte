@@ -4,6 +4,13 @@
   import PlaybackControls from "./PlaybackControls.svelte";
   import { formatTime } from "$lib/stores/playback";
   import type { PlaybackState, TimelineViewState } from "$lib/timeline/types";
+  import {
+    PLAYBACK_CONTEXT,
+    FORMATTED_TIME_CONTEXT,
+    TIMELINE_VIEW_CONTEXT,
+    PLAYBACK_ACTIONS_CONTEXT,
+    VIEW_ACTIONS_CONTEXT,
+  } from "$lib/constants/contexts";
 
   export let isPlaying: boolean = false;
   export let currentTime: number = 5.5;
@@ -77,11 +84,11 @@
   };
 
   // Set contexts
-  setContext("playback", mockPlayback);
-  setContext("formattedTime", mockFormattedTime);
-  setContext("timelineView", mockTimelineView);
-  setContext("playbackActions", mockPlaybackActions);
-  setContext("viewActions", mockViewActions);
+  setContext(PLAYBACK_CONTEXT, mockPlayback);
+  setContext(FORMATTED_TIME_CONTEXT, mockFormattedTime);
+  setContext(TIMELINE_VIEW_CONTEXT, mockTimelineView);
+  setContext(PLAYBACK_ACTIONS_CONTEXT, mockPlaybackActions);
+  setContext(VIEW_ACTIONS_CONTEXT, mockViewActions);
 </script>
 
 <div style="background: #111827; padding: 16px;">

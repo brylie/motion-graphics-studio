@@ -17,13 +17,20 @@
     playbackActions,
     formattedTime,
   } from "$lib/stores/playback";
+  import {
+    PLAYBACK_CONTEXT,
+    FORMATTED_TIME_CONTEXT,
+    TIMELINE_VIEW_CONTEXT,
+    PLAYBACK_ACTIONS_CONTEXT,
+    VIEW_ACTIONS_CONTEXT,
+  } from "$lib/constants/contexts";
 
   // Set contexts for components that use getContext
-  setContext("playback", playback);
-  setContext("formattedTime", formattedTime);
-  setContext("timelineView", timelineView);
-  setContext("playbackActions", playbackActions);
-  setContext("viewActions", viewActions);
+  setContext(PLAYBACK_CONTEXT, playback);
+  setContext(FORMATTED_TIME_CONTEXT, formattedTime);
+  setContext(TIMELINE_VIEW_CONTEXT, timelineView);
+  setContext(PLAYBACK_ACTIONS_CONTEXT, playbackActions);
+  setContext(VIEW_ACTIONS_CONTEXT, viewActions);
 
   onMount(() => {
     // Expose stores for e2e testing
