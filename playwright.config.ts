@@ -5,6 +5,10 @@ export default defineConfig({
 	use: {
 		channel: 'chrome'
 	},
-	webServer: { command: 'npm run build && npm run preview', port: 4173 },
+	webServer: {
+		command: 'npm run build && npm run preview',
+		port: 4173,
+		env: { VITE_E2E_TEST: 'true' }
+	},
 	testDir: 'e2e'
 });

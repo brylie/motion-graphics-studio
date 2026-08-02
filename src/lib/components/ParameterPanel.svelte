@@ -17,6 +17,7 @@
   // Subscribe to selected clip changes
   $: {
     const clipId = $timelineView.selectedClipId;
+    selectedClip = null;
     if (clipId) {
       for (const track of $timeline.tracks) {
         const clip = track.clips.find((c) => c.id === clipId);
@@ -25,8 +26,9 @@
           break;
         }
       }
-    } else {
-      selectedClip = null;
+    }
+
+    if (!selectedClip) {
       selectedParameter = null;
     }
   }
@@ -293,10 +295,10 @@
 
       <div class="automation-section">
         <h4>Automation</h4>
-        {#if selectedClip.automation && Object.keys(selectedClip.automation).length > 0}
-          {#each Object.entries(selectedClip.automation) as [param, curve]}
+        {#if selectedClip.automation && selectedClip.automation.length > 0}
+          {#each selectedClip.automation as curve}
             <div class="automation-row">
-              <span class="param-name">{param}</span>
+              <span class="param-name">{curve.parameterName}</span>
               <span class="keyframe-count"
                 >{curve.keyframes.length} keyframes</span
               >
