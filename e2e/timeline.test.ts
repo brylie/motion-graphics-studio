@@ -114,7 +114,7 @@ test.describe('Timeline Interactions', () => {
 				const curve = clip?.automation?.find(
 					(c: any) => c.parameterName === 'speed'
 				);
-				return !curve || curve.keyframes.length === 0;
+				return Boolean(clip) && (!curve || curve.keyframes.length === 0);
 			},
 			{ clipId }
 		);

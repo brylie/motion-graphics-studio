@@ -72,11 +72,13 @@ application behavior.
    Following file is generated:
 
    ```ts file=add-valid-todo.spec.ts
+   import { test } from '@playwright/test';
+
    // spec: specs/plan.md
    // seed: tests/seed.spec.ts
 
    test.describe('Adding New Todos', () => {
-     test('Add Valid Todo', async { page } => {
+     test('Add Valid Todo', async ({ page }) => {
        // 1. Click in the "What needs to be done?" input field
        await page.click(...);
 

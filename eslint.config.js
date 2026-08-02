@@ -7,9 +7,10 @@ import tseslint from 'typescript-eslint';
 export default [
 	{
 		ignores: [
+			'.claude/**',
+			'.codex/**',
 			'.svelte-kit/**',
 			'coverage/**',
-			'e2e/seed.spec.ts',
 			'node_modules/**',
 			'playwright-report/**',
 			'storybook-static/**',
