@@ -2,6 +2,14 @@ import { writable } from 'svelte/store';
 
 export type DragType = 'shader' | 'clip' | null;
 
+export function applyDropEffect(
+	dataTransfer: DataTransfer | null,
+	dragType: DragType
+) {
+	if (!dataTransfer) return;
+	dataTransfer.dropEffect = dragType === 'clip' ? 'move' : 'copy';
+}
+
 export interface DragState {
 	isDragging: boolean;
 	dragType: DragType;

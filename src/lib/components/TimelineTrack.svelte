@@ -3,7 +3,7 @@
   import TimelineClip from "./TimelineClip.svelte";
   import AutomationLane from "./AutomationLane.svelte";
   import { timelineActions } from "$lib/stores/timeline";
-  import { dragDropStore } from "$lib/stores/dragDrop";
+  import { applyDropEffect, dragDropStore } from "$lib/stores/dragDrop";
   import { createEventDispatcher } from "svelte";
 
   export let track: Track;
@@ -123,10 +123,7 @@
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect =
-        $dragDropStore.dragType === "clip" ? "move" : "copy";
-    }
+    applyDropEffect(e.dataTransfer, $dragDropStore.dragType);
     isDragOver = true;
   }
 

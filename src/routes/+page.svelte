@@ -33,8 +33,8 @@
   setContext(VIEW_ACTIONS_CONTEXT, viewActions);
 
   onMount(() => {
-    // Expose stores for e2e testing
-    if (typeof window !== "undefined") {
+    // Expose stores only in the dedicated e2e build.
+    if (import.meta.env.VITE_E2E_TEST === "true") {
       (window as any).__timelineStore = {
         get: () => get(timeline),
         subscribe: timeline.subscribe,

@@ -7,7 +7,7 @@
     viewActions,
   } from "$lib/stores/timeline";
   import { playback, playbackActions } from "$lib/stores/playback";
-  import { dragDropStore } from "$lib/stores/dragDrop";
+  import { applyDropEffect, dragDropStore } from "$lib/stores/dragDrop";
   import TimelineRuler from "./TimelineRuler.svelte";
   import TimelineTrack from "./TimelineTrack.svelte";
   import type { Clip } from "$lib/timeline/types";
@@ -254,10 +254,7 @@
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect =
-        $dragDropStore.dragType === "clip" ? "move" : "copy";
-    }
+    applyDropEffect(e.dataTransfer, $dragDropStore.dragType);
 
     // Update preview position
     const trackId = getTrackAtPosition(e.clientY);
