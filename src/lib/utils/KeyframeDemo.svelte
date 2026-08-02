@@ -48,64 +48,65 @@
   }
 
   function draw() {
-    if (!ctx) return;
+    const context = ctx;
+    if (!context) return;
 
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    context.clearRect(0, 0, canvasWidth, canvasHeight);
 
     // Draw background
-    ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    context.fillStyle = "#1a1a1a";
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
 
     // Draw timeline
-    ctx.strokeStyle = "#555";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(MARGIN, TIMELINE_Y);
-    ctx.lineTo(canvasWidth - MARGIN, TIMELINE_Y);
-    ctx.stroke();
+    context.strokeStyle = "#555";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(MARGIN, TIMELINE_Y);
+    context.lineTo(canvasWidth - MARGIN, TIMELINE_Y);
+    context.stroke();
 
     // Draw time markers
-    ctx.fillStyle = "#888";
-    ctx.font = "12px monospace";
-    ctx.textAlign = "center";
+    context.fillStyle = "#888";
+    context.font = "12px monospace";
+    context.textAlign = "center";
     for (let t = 0; t <= CLIP_DURATION; t++) {
       const x = timeToX(t);
-      ctx.beginPath();
-      ctx.moveTo(x, TIMELINE_Y - 5);
-      ctx.lineTo(x, TIMELINE_Y + 5);
-      ctx.stroke();
-      ctx.fillText(`${t}s`, x, TIMELINE_Y + 20);
+      context.beginPath();
+      context.moveTo(x, TIMELINE_Y - 5);
+      context.lineTo(x, TIMELINE_Y + 5);
+      context.stroke();
+      context.fillText(`${t}s`, x, TIMELINE_Y + 20);
     }
 
     // Draw value guide lines
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 1;
+    context.strokeStyle = "#333";
+    context.lineWidth = 1;
     for (let v = 0; v <= 1; v += 0.25) {
       const y = valueToY(v);
-      ctx.beginPath();
-      ctx.moveTo(MARGIN, y);
-      ctx.lineTo(canvasWidth - MARGIN, y);
-      ctx.stroke();
-      ctx.fillStyle = "#666";
-      ctx.textAlign = "right";
-      ctx.fillText(v.toFixed(2), MARGIN - 10, y + 4);
+      context.beginPath();
+      context.moveTo(MARGIN, y);
+      context.lineTo(canvasWidth - MARGIN, y);
+      context.stroke();
+      context.fillStyle = "#666";
+      context.textAlign = "right";
+      context.fillText(v.toFixed(2), MARGIN - 10, y + 4);
     }
 
     // Draw automation curve
     if (keyframes.length > 1) {
-      ctx.strokeStyle = "#4a9eff";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
+      context.strokeStyle = "#4a9eff";
+      context.lineWidth = 2;
+      context.beginPath();
       keyframes.forEach((kf, i) => {
         const x = timeToX(kf.time);
         const y = valueToY(kf.value);
         if (i === 0) {
-          ctx.moveTo(x, y);
+          context.moveTo(x, y);
         } else {
-          ctx.lineTo(x, y);
+          context.lineTo(x, y);
         }
       });
-      ctx.stroke();
+      context.stroke();
     }
 
     // Draw keyframes
@@ -113,29 +114,29 @@
       const x = timeToX(kf.time);
       const y = valueToY(kf.value);
 
-      ctx.fillStyle = i === selectedIndex ? "#ffaa00" : "#4a9eff";
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 2;
+      context.fillStyle = i === selectedIndex ? "#ffaa00" : "#4a9eff";
+      context.strokeStyle = "#fff";
+      context.lineWidth = 2;
 
-      ctx.beginPath();
-      ctx.arc(x, y, KEYFRAME_RADIUS, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      context.beginPath();
+      context.arc(x, y, KEYFRAME_RADIUS, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
 
       // Draw time/value labels
-      ctx.fillStyle = "#fff";
-      ctx.font = "11px monospace";
-      ctx.textAlign = "center";
-      ctx.fillText(`t:${kf.time.toFixed(1)}`, x, y - 15);
-      ctx.fillText(`v:${kf.value.toFixed(2)}`, x, y + 25);
+      context.fillStyle = "#fff";
+      context.font = "11px monospace";
+      context.textAlign = "center";
+      context.fillText(`t:${kf.time.toFixed(1)}`, x, y - 15);
+      context.fillText(`v:${kf.value.toFixed(2)}`, x, y + 25);
     });
 
     // Draw validation errors
     if (!validation.valid) {
-      ctx.fillStyle = "#ff4444";
-      ctx.font = "14px sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText("⚠ " + validation.errors[0], MARGIN, canvasHeight - 10);
+      context.fillStyle = "#ff4444";
+      context.font = "14px sans-serif";
+      context.textAlign = "left";
+      context.fillText("⚠ " + validation.errors[0], MARGIN, canvasHeight - 10);
     }
   }
 

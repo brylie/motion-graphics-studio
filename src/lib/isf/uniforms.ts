@@ -21,6 +21,7 @@ export function setUniform(
 			gl.uniform1i(location, value ? 1 : 0);
 			break;
 		case 'point2D':
+		case 'vec2':
 			if (Array.isArray(value) && value.length >= 2) {
 				gl.uniform2f(location, value[0], value[1]);
 			}

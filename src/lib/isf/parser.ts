@@ -78,6 +78,7 @@ export function getDefaultValue(input: ISFMetadata['INPUTS'][0]): any {
 		case 'color':
 			return [1, 1, 1, 1];
 		case 'point2D':
+		case 'vec2':
 			return [0.5, 0.5];
 		case 'image':
 		case 'audio':

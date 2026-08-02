@@ -1,6 +1,6 @@
 // ISF (Interactive Shader Format) Type Definitions
 
-export type ISFInputType = 'image' | 'float' | 'color' | 'point2D' | 'bool' | 'long' | 'event' | 'audio' | 'audioFFT';
+export type ISFInputType = 'image' | 'float' | 'color' | 'point2D' | 'vec2' | 'bool' | 'long' | 'event' | 'audio' | 'audioFFT';
 
 export interface ISFInput {
 	NAME: string;
