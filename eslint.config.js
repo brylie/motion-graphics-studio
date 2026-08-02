@@ -20,20 +20,12 @@ export default [
 	...tseslint.configs.recommended,
 	...svelte.configs['flat/recommended'],
 	{
-		languageOptions: {
-			globals: {
-				...globals.browser,
-				...globals.node
-			}
-		}
+		languageOptions: { globals: { ...globals.browser, ...globals.node } }
 	},
+
 	{
 		files: ['**/*.svelte'],
-		languageOptions: {
-			parserOptions: {
-				parser: tseslint.parser
-			}
-		}
+		languageOptions: { parserOptions: { parser: tseslint.parser } }
 	},
 	eslintConfigPrettier,
 	...svelte.configs['flat/prettier'],
@@ -44,6 +36,7 @@ export default [
 			'svelte/require-each-key': 'off'
 		}
 	},
+
 	{
 		files: ['**/*.svelte'],
 		rules: {
