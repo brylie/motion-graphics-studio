@@ -23,7 +23,7 @@ export default defineConfig({
 
 		projects: [
 			{
-				extends: './vite.config.ts',
+				extends: true,
 
 				test: {
 					name: 'unit',
@@ -33,7 +33,7 @@ export default defineConfig({
 			},
 
 			{
-				extends: './vite.config.ts',
+				extends: true,
 
 				test: {
 					name: 'component',
@@ -50,7 +50,7 @@ export default defineConfig({
 			},
 
 			{
-				extends: './vite.config.ts',
+				extends: true,
 				plugins: [
 					storybookTest({ configDir: path.join(dirname, '.storybook') })
 				],
