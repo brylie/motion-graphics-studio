@@ -21,53 +21,53 @@ export const playbackActions = {
 	 * Start playback
 	 */
 	play() {
-		playback.update(p => ({ ...p, isPlaying: true }));
+		playback.update((p) => ({ ...p, isPlaying: true }));
 	},
 
 	/**
 	 * Pause playback
 	 */
 	pause() {
-		playback.update(p => ({ ...p, isPlaying: false }));
+		playback.update((p) => ({ ...p, isPlaying: false }));
 	},
 
 	/**
 	 * Toggle play/pause
 	 */
 	togglePlay() {
-		playback.update(p => ({ ...p, isPlaying: !p.isPlaying }));
+		playback.update((p) => ({ ...p, isPlaying: !p.isPlaying }));
 	},
 
 	/**
 	 * Stop and reset to beginning
 	 */
 	stop() {
-		playback.update(p => ({ ...p, isPlaying: false, currentTime: 0 }));
+		playback.update((p) => ({ ...p, isPlaying: false, currentTime: 0 }));
 	},
 
 	/**
 	 * Seek to specific time
 	 */
 	seek(time: number) {
-		playback.update(p => ({ ...p, currentTime: Math.max(0, time) }));
+		playback.update((p) => ({ ...p, currentTime: Math.max(0, time) }));
 	},
 
 	/**
 	 * Update current time (called from render loop)
 	 */
 	updateTime(deltaTime: number) {
-		playback.update(p => {
+		playback.update((p) => {
 			if (!p.isPlaying) return p;
-			
+
 			let newTime = p.currentTime + deltaTime;
-			
+
 			// Handle looping
 			if (p.loop) {
 				if (newTime >= p.loopEnd) {
 					newTime = p.loopStart + (newTime - p.loopEnd);
 				}
 			}
-			
+
 			return { ...p, currentTime: newTime };
 		});
 	},
@@ -76,14 +76,14 @@ export const playbackActions = {
 	 * Toggle loop
 	 */
 	toggleLoop() {
-		playback.update(p => ({ ...p, loop: !p.loop }));
+		playback.update((p) => ({ ...p, loop: !p.loop }));
 	},
 
 	/**
 	 * Set loop region
 	 */
 	setLoopRegion(start: number, end: number) {
-		playback.update(p => ({
+		playback.update((p) => ({
 			...p,
 			loopStart: Math.max(0, start),
 			loopEnd: Math.max(start, end)
@@ -100,4 +100,6 @@ export function formatTime(time: number): string {
 }
 
 // Derived store for formatted time display
-export const formattedTime = derived(playback, ($playback) => formatTime($playback.currentTime));
+export const formattedTime = derived(playback, ($playback) =>
+	formatTime($playback.currentTime)
+);

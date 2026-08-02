@@ -1,4 +1,4 @@
-import type { ISFInput, ShaderUniforms } from './types';
+import type { ISFInput } from './types';
 
 /**
  * Set a uniform value in a WebGL shader program
@@ -59,11 +59,16 @@ export function setStandardUniforms(
 	if (uniforms.TIME) {
 		gl.uniform1f(uniforms.TIME, time);
 	}
-	
+
 	if (uniforms.RENDERSIZE) {
-		gl.uniform3f(uniforms.RENDERSIZE, renderSize[0], renderSize[1], renderSize[0] / renderSize[1]);
+		gl.uniform3f(
+			uniforms.RENDERSIZE,
+			renderSize[0],
+			renderSize[1],
+			renderSize[0] / renderSize[1]
+		);
 	}
-	
+
 	if (uniforms.PASSINDEX !== undefined && passIndex !== undefined) {
 		gl.uniform1i(uniforms.PASSINDEX, passIndex);
 	}
@@ -81,15 +86,15 @@ export function createTextureFromImage(
 
 	gl.bindTexture(gl.TEXTURE_2D, texture);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-	
+
 	// Set texture parameters
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	
+
 	gl.bindTexture(gl.TEXTURE_2D, null);
-	
+
 	return texture;
 }
 
@@ -105,15 +110,25 @@ export function createEmptyTexture(
 	if (!texture) return null;
 
 	gl.bindTexture(gl.TEXTURE_2D, texture);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-	
+	gl.texImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA,
+		width,
+		height,
+		0,
+		gl.RGBA,
+		gl.UNSIGNED_BYTE,
+		null
+	);
+
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	
+
 	gl.bindTexture(gl.TEXTURE_2D, null);
-	
+
 	return texture;
 }
 

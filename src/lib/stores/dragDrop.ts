@@ -34,8 +34,12 @@ function createDragDropStore() {
 
 	return {
 		subscribe,
-		startDrag: (type: 'shader' | 'clip', data: { clipId?: string; shaderId?: string }, duration: number = 5.0) => {
-			update(state => ({
+		startDrag: (
+			type: 'shader' | 'clip',
+			data: { clipId?: string; shaderId?: string },
+			duration: number = 5.0
+		) => {
+			update((state) => ({
 				...state,
 				isDragging: true,
 				dragType: type,
@@ -44,7 +48,7 @@ function createDragDropStore() {
 			}));
 		},
 		updatePreview: (trackId: string | null, time: number, visible: boolean) => {
-			update(state => ({
+			update((state) => ({
 				...state,
 				previewPosition: { trackId, time, visible }
 			}));

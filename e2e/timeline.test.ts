@@ -15,7 +15,9 @@ test.describe('Timeline Interactions', () => {
 		});
 
 		if (!hasStore) {
-			throw new Error('Timeline store is not exposed on window. Tests cannot proceed.');
+			throw new Error(
+				'Timeline store is not exposed on window. Tests cannot proceed.'
+			);
 		}
 	});
 
@@ -44,7 +46,11 @@ test.describe('Timeline Interactions', () => {
 		expect(finalClipCount).toBe(initialClipCount + 1);
 
 		// Verify clip is visible in the UI
-		const clip = page.locator('[data-track-id]').first().locator('.timeline-clip').first();
+		const clip = page
+			.locator('[data-track-id]')
+			.first()
+			.locator('.timeline-clip')
+			.first();
 		await expect(clip).toBeVisible();
 	});
 
@@ -64,34 +70,54 @@ test.describe('Timeline Interactions', () => {
 		expect(clipId).not.toBeNull();
 
 		// Add a keyframe
-		await page.evaluate(({ clipId }) => {
-			const actions = (window as any).__timelineActions;
-			actions.addKeyframe(clipId, 'speed', 2.0, 0.5);
-		}, { clipId });
+		await page.evaluate(
+			({ clipId }) => {
+				const actions = (window as any).__timelineActions;
+				actions.addKeyframe(clipId, 'speed', 2.0, 0.5);
+			},
+			{ clipId }
+		);
 
 		// Verify keyframe was added
-		const hasKeyframe = await page.evaluate(({ clipId }) => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.id === clipId);
-			const curve = clip?.automation?.find((c: any) => c.parameterName === 'speed');
-			return curve?.keyframes?.length > 0;
-		}, { clipId });
+		const hasKeyframe = await page.evaluate(
+			({ clipId }) => {
+				const state = (window as any).__timelineStore?.get?.();
+				const clip = state?.tracks?.[0]?.clips?.find(
+					(c: any) => c.id === clipId
+				);
+				const curve = clip?.automation?.find(
+					(c: any) => c.parameterName === 'speed'
+				);
+				return curve?.keyframes?.length > 0;
+			},
+			{ clipId }
+		);
 
 		expect(hasKeyframe).toBe(true);
 
 		// Remove the keyframe
-		await page.evaluate(({ clipId }) => {
-			const actions = (window as any).__timelineActions;
-			actions.removeKeyframe(clipId, 'speed', 2.0);
-		}, { clipId });
+		await page.evaluate(
+			({ clipId }) => {
+				const actions = (window as any).__timelineActions;
+				actions.removeKeyframe(clipId, 'speed', 2.0);
+			},
+			{ clipId }
+		);
 
 		// Verify keyframe was removed
-		const keyframeRemoved = await page.evaluate(({ clipId }) => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.id === clipId);
-			const curve = clip?.automation?.find((c: any) => c.parameterName === 'speed');
-			return !curve || curve.keyframes.length === 0;
-		}, { clipId });
+		const keyframeRemoved = await page.evaluate(
+			({ clipId }) => {
+				const state = (window as any).__timelineStore?.get?.();
+				const clip = state?.tracks?.[0]?.clips?.find(
+					(c: any) => c.id === clipId
+				);
+				const curve = clip?.automation?.find(
+					(c: any) => c.parameterName === 'speed'
+				);
+				return !curve || curve.keyframes.length === 0;
+			},
+			{ clipId }
+		);
 
 		expect(keyframeRemoved).toBe(true);
 	});
@@ -120,7 +146,8 @@ test.describe('Timeline Interactions', () => {
 			// Get initial state
 			const beforeResize = (window as any).__timelineStore?.get?.();
 			const clip = beforeResize?.tracks?.[0]?.clips?.[0];
-			const initialKeyframes = clip?.automation?.[0]?.keyframes?.map((kf: any) => kf.time) || [];
+			const initialKeyframes =
+				clip?.automation?.[0]?.keyframes?.map((kf: any) => kf.time) || [];
 
 			// Resize clip (increase duration)
 			actions.updateClipDuration(clipId, 15.0);
@@ -128,14 +155,17 @@ test.describe('Timeline Interactions', () => {
 			// Get final state
 			const afterResize = (window as any).__timelineStore?.get?.();
 			const resizedClip = afterResize?.tracks?.[0]?.clips?.[0];
-			const finalKeyframes = resizedClip?.automation?.[0]?.keyframes?.map((kf: any) => kf.time) || [];
+			const finalKeyframes =
+				resizedClip?.automation?.[0]?.keyframes?.map((kf: any) => kf.time) ||
+				[];
 
 			return {
 				initialDuration: 10.0,
 				finalDuration: resizedClip?.duration,
 				initialKeyframes,
 				finalKeyframes,
-				keyframesUnchanged: JSON.stringify(initialKeyframes) === JSON.stringify(finalKeyframes)
+				keyframesUnchanged:
+					JSON.stringify(initialKeyframes) === JSON.stringify(finalKeyframes)
 			};
 		});
 
@@ -198,7 +228,9 @@ test.describe('Timeline Interactions', () => {
 		await expect(rightHandle).toBeVisible();
 	});
 
-	test('should display clip with correct duration and position', async ({ page }) => {
+	test('should display clip with correct duration and position', async ({
+		page
+	}) => {
 		// Add a clip at specific position and duration
 		await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
@@ -254,10 +286,13 @@ test.describe('Timeline Interactions', () => {
 		await expect(clip).toBeVisible();
 
 		// Remove the clip
-		await page.evaluate(({ clipId }) => {
-			const actions = (window as any).__timelineActions;
-			actions.removeClip(clipId);
-		}, { clipId });
+		await page.evaluate(
+			({ clipId }) => {
+				const actions = (window as any).__timelineActions;
+				actions.removeClip(clipId);
+			},
+			{ clipId }
+		);
 
 		// Verify clip is gone
 		await expect(clip).not.toBeVisible();
@@ -279,17 +314,25 @@ test.describe('Timeline Interactions', () => {
 		expect(clipId).not.toBeNull();
 
 		// Update clip time
-		await page.evaluate(({ clipId }) => {
-			const actions = (window as any).__timelineActions;
-			actions.updateClipTime(clipId, 6.5);
-		}, { clipId });
+		await page.evaluate(
+			({ clipId }) => {
+				const actions = (window as any).__timelineActions;
+				actions.updateClipTime(clipId, 6.5);
+			},
+			{ clipId }
+		);
 
 		// Verify new time
-		const newTime = await page.evaluate(({ clipId }) => {
-			const state = (window as any).__timelineStore?.get?.();
-			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.id === clipId);
-			return clip?.startTime;
-		}, { clipId });
+		const newTime = await page.evaluate(
+			({ clipId }) => {
+				const state = (window as any).__timelineStore?.get?.();
+				const clip = state?.tracks?.[0]?.clips?.find(
+					(c: any) => c.id === clipId
+				);
+				return clip?.startTime;
+			},
+			{ clipId }
+		);
 
 		expect(newTime).toBe(6.5);
 	});
@@ -340,7 +383,9 @@ test.describe('Timeline Interactions', () => {
 		expect(newSolo).toBe(!initialSolo);
 	});
 
-	test('should display automation lanes when keyframes exist', async ({ page }) => {
+	test('should display automation lanes when keyframes exist', async ({
+		page
+	}) => {
 		// Add a clip with keyframes
 		await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
@@ -375,7 +420,10 @@ test.describe('Timeline Interactions', () => {
 		});
 
 		// Verify all clips are visible
-		const clips = page.locator('[data-track-id]').first().locator('.timeline-clip');
+		const clips = page
+			.locator('[data-track-id]')
+			.first()
+			.locator('.timeline-clip');
 		await expect(clips).toHaveCount(3);
 	});
 
@@ -397,9 +445,18 @@ test.describe('Timeline Interactions', () => {
 		});
 
 		// Verify each track has a clip
-		const track1Clips = page.locator('[data-track-id]').first().locator('.timeline-clip');
-		const track2Clips = page.locator('[data-track-id]').nth(1).locator('.timeline-clip');
-		const track3Clips = page.locator('[data-track-id]').nth(2).locator('.timeline-clip');
+		const track1Clips = page
+			.locator('[data-track-id]')
+			.first()
+			.locator('.timeline-clip');
+		const track2Clips = page
+			.locator('[data-track-id]')
+			.nth(1)
+			.locator('.timeline-clip');
+		const track3Clips = page
+			.locator('[data-track-id]')
+			.nth(2)
+			.locator('.timeline-clip');
 
 		await expect(track1Clips).toHaveCount(1);
 		await expect(track2Clips).toHaveCount(1);

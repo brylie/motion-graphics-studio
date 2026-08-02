@@ -8,7 +8,8 @@ const meta = {
 		layout: 'padded',
 		docs: {
 			description: {
-				component: 'Transport controls for timeline playback including play/pause, stop, loop toggle, and zoom controls. Displays current playback time.'
+				component:
+					'Transport controls for timeline playback including play/pause, stop, loop toggle, and zoom controls. Displays current playback time.'
 			}
 		}
 	},
@@ -44,7 +45,8 @@ export const Playing: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: 'Controls when playback is active - play button shows pause icon.'
+				story:
+					'Controls when playback is active - play button shows pause icon.'
 			}
 		}
 	}

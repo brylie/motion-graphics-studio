@@ -8,7 +8,7 @@ export function parseISF(source: string, filename: string): ParsedISF | null {
 	try {
 		// Extract JSON metadata from /*{...}*/ comment block
 		const jsonMatch = source.match(/\/\*\s*(\{[\s\S]*?\})\s*\*\//);
-		
+
 		if (!jsonMatch) {
 			console.error('No ISF metadata found in shader:', filename);
 			return null;
@@ -29,7 +29,9 @@ export function parseISF(source: string, filename: string): ParsedISF | null {
 		}
 
 		// Extract shader code (everything after the metadata comment)
-		const fragmentShader = source.substring(jsonMatch.index! + jsonMatch[0].length).trim();
+		const fragmentShader = source
+			.substring(jsonMatch.index! + jsonMatch[0].length)
+			.trim();
 
 		return {
 			metadata,
@@ -93,20 +95,24 @@ export function getDefaultValue(input: ISFMetadata['INPUTS'][0]): any {
  * Check if shader requires an input image
  */
 export function requiresInputImage(metadata: ISFMetadata): boolean {
-	return metadata.INPUTS.some(input => input.TYPE === 'image');
+	return metadata.INPUTS.some((input) => input.TYPE === 'image');
 }
 
 /**
  * Check if shader is a generator (doesn't require input)
  */
 export function isGenerator(metadata: ISFMetadata): boolean {
-	return metadata.CATEGORIES.includes('Generator') || !requiresInputImage(metadata);
+	return (
+		metadata.CATEGORIES.includes('Generator') || !requiresInputImage(metadata)
+	);
 }
 
 /**
  * Get all shaders from a directory
  */
-export async function loadShadersFromDirectory(baseURL: string): Promise<ParsedISF[]> {
+export async function loadShadersFromDirectory(
+	baseURL: string
+): Promise<ParsedISF[]> {
 	try {
 		// List of shader files to load
 		const shaderFiles = [
@@ -120,7 +126,7 @@ export async function loadShadersFromDirectory(baseURL: string): Promise<ParsedI
 			'Image.fs'
 		];
 
-		const loadPromises = shaderFiles.map(file => 
+		const loadPromises = shaderFiles.map((file) =>
 			loadISFFromURL(`${baseURL}/${file}`)
 		);
 

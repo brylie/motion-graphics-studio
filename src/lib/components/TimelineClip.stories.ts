@@ -8,7 +8,8 @@ const meta = {
 		layout: 'padded',
 		docs: {
 			description: {
-				component: 'A visual representation of a clip on the timeline. Supports selection, dragging, and resizing with handles. Shows clip name and duration.'
+				component:
+					'A visual representation of a clip on the timeline. Supports selection, dragging, and resizing with handles. Shows clip name and duration.'
 			}
 		}
 	},

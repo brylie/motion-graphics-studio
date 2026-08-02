@@ -16,11 +16,11 @@ export interface HistoryStore<T> extends Readable<T> {
 
 /**
  * Creates a writable store with undo/redo capabilities.
- * 
+ *
  * @param initialValue - The initial state
  * @param maxHistory - Maximum number of states to keep in history (default: 50)
  * @returns A store with time-travel debugging capabilities
- * 
+ *
  * @example
  * ```typescript
  * const store = historyStore({ count: 0 });
@@ -29,7 +29,10 @@ export interface HistoryStore<T> extends Readable<T> {
  * store.redo(); // Goes back to { count: 1 }
  * ```
  */
-export function historyStore<T>(initialValue: T, maxHistory = 50): HistoryStore<T> {
+export function historyStore<T>(
+	initialValue: T,
+	maxHistory = 50
+): HistoryStore<T> {
 	let currentIndex = 0;
 	let history: T[] = [structuredClone(initialValue)];
 	let isApplyingHistory = false; // Prevent history recording during undo/redo

@@ -1,5 +1,11 @@
 import { writable, derived, get } from 'svelte/store';
-import type { Timeline, Track, Clip, TimelineViewState, AutomationCurve } from '$lib/timeline/types';
+import type {
+	Timeline,
+	Track,
+	Clip,
+	TimelineViewState,
+	AutomationCurve
+} from '$lib/timeline/types';
 import { v4 as uuidv4 } from 'uuid';
 import { shaderLibrary } from './shaders';
 import { getDefaultValue } from '$lib/isf/parser';
@@ -39,9 +45,11 @@ export const selectedClip = derived(
 	[timeline, timelineView],
 	([$timeline, $timelineView]) => {
 		if (!$timelineView.selectedClipId) return null;
-		
+
 		for (const track of $timeline.tracks) {
-			const clip = track.clips.find(c => c.id === $timelineView.selectedClipId);
+			const clip = track.clips.find(
+				(c) => c.id === $timelineView.selectedClipId
+			);
 			if (clip) return clip;
 		}
 		return null;
@@ -60,7 +68,7 @@ export const timelineActions = {
 
 		const currentTimeline = get(timeline);
 		for (const track of currentTimeline.tracks) {
-			const clip = track.clips.find(c => c.id === clipId);
+			const clip = track.clips.find((c) => c.id === clipId);
 			if (clip) {
 				for (const curve of clip.automation) {
 					for (const kf of curve.keyframes) {
@@ -80,7 +88,7 @@ export const timelineActions = {
 	 * Add a new track
 	 */
 	addTrack() {
-		timeline.update(t => {
+		timeline.update((t) => {
 			const newTrack: Track = {
 				id: uuidv4(),
 				name: `Track ${t.tracks.length + 1}`,
@@ -100,9 +108,9 @@ export const timelineActions = {
 	 * Remove a track
 	 */
 	removeTrack(trackId: string) {
-		timeline.update(t => ({
+		timeline.update((t) => ({
 			...t,
-			tracks: t.tracks.filter(track => track.id !== trackId)
+			tracks: t.tracks.filter((track) => track.id !== trackId)
 		}));
 	},
 
@@ -117,19 +125,25 @@ export const timelineActions = {
 		existingParameters?: { [key: string]: any },
 		existingAutomation?: AutomationCurve[]
 	) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => {
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => {
 				if (track.id === trackId) {
 					// Get shader metadata to initialize parameters
 					const shaderLibraryState = get(shaderLibrary);
-					const shader = shaderLibraryState.shaders.find(s => s.filename === shaderName);
+					const shader = shaderLibraryState.shaders.find(
+						(s) => s.filename === shaderName
+					);
 
 					// Use existing parameters if provided, otherwise initialize with defaults
-					let parameters: { [key: string]: any } = existingParameters || {};
+					const parameters: { [key: string]: any } = existingParameters || {};
 					if (!existingParameters && shader && shader.metadata.INPUTS) {
 						for (const input of shader.metadata.INPUTS) {
 							// Only include non-image inputs in parameters
-							if (input.TYPE !== 'image' && input.TYPE !== 'audio' && input.TYPE !== 'audioFFT') {
+							if (
+								input.TYPE !== 'image' &&
+								input.TYPE !== 'audio' &&
+								input.TYPE !== 'audioFFT'
+							) {
 								parameters[input.NAME] = getDefaultValue(input);
 							}
 						}
@@ -160,10 +174,10 @@ export const timelineActions = {
 	 * Remove a clip
 	 */
 	removeClip(clipId: string) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => ({
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => ({
 				...track,
-				clips: track.clips.filter(c => c.id !== clipId)
+				clips: track.clips.filter((c) => c.id !== clipId)
 			}));
 			return { ...t, tracks };
 		});
@@ -173,10 +187,10 @@ export const timelineActions = {
 	 * Update clip position (keyframes stay in same relative position)
 	 */
 	updateClipTime(clipId: string, startTime: number) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => ({
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => ({
 				...track,
-				clips: track.clips.map(clip => 
+				clips: track.clips.map((clip) =>
 					clip.id === clipId ? { ...clip, startTime } : clip
 				)
 			}));
@@ -189,11 +203,13 @@ export const timelineActions = {
 	 * Update clip duration
 	 */
 	updateClipDuration(clipId: string, duration: number) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => ({
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => ({
 				...track,
-				clips: track.clips.map(clip => 
-					clip.id === clipId ? { ...clip, duration: Math.max(0.1, duration) } : clip
+				clips: track.clips.map((clip) =>
+					clip.id === clipId
+						? { ...clip, duration: Math.max(0.1, duration) }
+						: clip
 				)
 			}));
 			return { ...t, tracks };
@@ -204,10 +220,10 @@ export const timelineActions = {
 	 * Update clip parameter
 	 */
 	updateClipParameter(clipId: string, parameterName: string, value: any) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => ({
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => ({
 				...track,
-				clips: track.clips.map(clip => {
+				clips: track.clips.map((clip) => {
 					if (clip.id === clipId) {
 						return {
 							...clip,
@@ -228,8 +244,8 @@ export const timelineActions = {
 	 * Toggle track mute
 	 */
 	toggleMute(trackId: string) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => 
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) =>
 				track.id === trackId ? { ...track, muted: !track.muted } : track
 			);
 			return { ...t, tracks };
@@ -240,8 +256,8 @@ export const timelineActions = {
 	 * Toggle track solo
 	 */
 	toggleSolo(trackId: string) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => 
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) =>
 				track.id === trackId ? { ...track, solo: !track.solo } : track
 			);
 			return { ...t, tracks };
@@ -251,17 +267,24 @@ export const timelineActions = {
 	/**
 	 * Add keyframe to clip parameter
 	 */
-	addKeyframe(clipId: string, parameterName: string, time: number, value: number) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => ({
+	addKeyframe(
+		clipId: string,
+		parameterName: string,
+		time: number,
+		value: number
+	) {
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => ({
 				...track,
-				clips: track.clips.map(clip => {
+				clips: track.clips.map((clip) => {
 					if (clip.id !== clipId) return clip;
-					
+
 					// Find or create automation curve
-					let automation = [...clip.automation];
-					let curveIndex = automation.findIndex(c => c.parameterName === parameterName);
-					
+					const automation = [...clip.automation];
+					const curveIndex = automation.findIndex(
+						(c) => c.parameterName === parameterName
+					);
+
 					if (curveIndex === -1) {
 						// Create new curve
 						automation.push({
@@ -271,8 +294,10 @@ export const timelineActions = {
 					} else {
 						// Add keyframe to existing curve (or update if exists at same time)
 						const curve = automation[curveIndex];
-						const existingIndex = curve.keyframes.findIndex(kf => Math.abs(kf.time - time) < 0.01);
-						
+						const existingIndex = curve.keyframes.findIndex(
+							(kf) => Math.abs(kf.time - time) < 0.01
+						);
+
 						if (existingIndex !== -1) {
 							// Update existing keyframe
 							curve.keyframes[existingIndex].value = value;
@@ -282,7 +307,7 @@ export const timelineActions = {
 							curve.keyframes.sort((a, b) => a.time - b.time);
 						}
 					}
-					
+
 					return { ...clip, automation };
 				})
 			}));
@@ -294,21 +319,25 @@ export const timelineActions = {
 	 * Remove keyframe at specific time
 	 */
 	removeKeyframe(clipId: string, parameterName: string, time: number) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => ({
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => ({
 				...track,
-				clips: track.clips.map(clip => {
+				clips: track.clips.map((clip) => {
 					if (clip.id !== clipId) return clip;
-					
-					const automation = clip.automation.map(curve => {
-						if (curve.parameterName !== parameterName) return curve;
-						
-						return {
-							...curve,
-							keyframes: curve.keyframes.filter(kf => Math.abs(kf.time - time) >= 0.01)
-						};
-					}).filter(curve => curve.keyframes.length > 0);
-					
+
+					const automation = clip.automation
+						.map((curve) => {
+							if (curve.parameterName !== parameterName) return curve;
+
+							return {
+								...curve,
+								keyframes: curve.keyframes.filter(
+									(kf) => Math.abs(kf.time - time) >= 0.01
+								)
+							};
+						})
+						.filter((curve) => curve.keyframes.length > 0);
+
 					return { ...clip, automation };
 				})
 			}));
@@ -319,24 +348,29 @@ export const timelineActions = {
 	/**
 	 * Update keyframe value
 	 */
-	updateKeyframe(clipId: string, parameterName: string, time: number, value: number) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => ({
+	updateKeyframe(
+		clipId: string,
+		parameterName: string,
+		time: number,
+		value: number
+	) {
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => ({
 				...track,
-				clips: track.clips.map(clip => {
+				clips: track.clips.map((clip) => {
 					if (clip.id !== clipId) return clip;
-					
-					const automation = clip.automation.map(curve => {
+
+					const automation = clip.automation.map((curve) => {
 						if (curve.parameterName !== parameterName) return curve;
-						
+
 						return {
 							...curve,
-							keyframes: curve.keyframes.map(kf =>
+							keyframes: curve.keyframes.map((kf) =>
 								Math.abs(kf.time - time) < 0.01 ? { ...kf, value } : kf
 							)
 						};
 					});
-					
+
 					return { ...clip, automation };
 				})
 			}));
@@ -348,13 +382,15 @@ export const timelineActions = {
 	 * Clear all keyframes for a parameter
 	 */
 	clearKeyframes(clipId: string, parameterName: string) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => ({
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => ({
 				...track,
-				clips: track.clips.map(clip => {
+				clips: track.clips.map((clip) => {
 					if (clip.id !== clipId) return clip;
-					
-					const automation = clip.automation.filter(c => c.parameterName !== parameterName);
+
+					const automation = clip.automation.filter(
+						(c) => c.parameterName !== parameterName
+					);
 					return { ...clip, automation };
 				})
 			}));
@@ -366,12 +402,12 @@ export const timelineActions = {
 	 * Update parameter base value
 	 */
 	updateParameter(clipId: string, parameterName: string, value: any) {
-		timeline.update(t => {
-			const tracks = t.tracks.map(track => ({
+		timeline.update((t) => {
+			const tracks = t.tracks.map((track) => ({
 				...track,
-				clips: track.clips.map(clip => {
+				clips: track.clips.map((clip) => {
 					if (clip.id !== clipId) return clip;
-					
+
 					return {
 						...clip,
 						parameters: {
@@ -392,7 +428,7 @@ export const viewActions = {
 	 * Set zoom level
 	 */
 	setZoom(pixelsPerSecond: number) {
-		timelineView.update(v => ({
+		timelineView.update((v) => ({
 			...v,
 			pixelsPerSecond: Math.max(10, Math.min(200, pixelsPerSecond))
 		}));
@@ -402,7 +438,7 @@ export const viewActions = {
 	 * Select clip
 	 */
 	selectClip(clipId: string | null) {
-		timelineView.update(v => ({
+		timelineView.update((v) => ({
 			...v,
 			selectedClipId: clipId
 		}));
@@ -412,7 +448,7 @@ export const viewActions = {
 	 * Select track
 	 */
 	selectTrack(trackId: string | null) {
-		timelineView.update(v => ({
+		timelineView.update((v) => ({
 			...v,
 			selectedTrackId: trackId
 		}));
@@ -421,12 +457,17 @@ export const viewActions = {
 	/**
 	 * Select keyframe
 	 */
-	selectKeyframe(clipId: string | null, paramName: string | null, time: number | null) {
-		timelineView.update(v => ({
+	selectKeyframe(
+		clipId: string | null,
+		paramName: string | null,
+		time: number | null
+	) {
+		timelineView.update((v) => ({
 			...v,
-			selectedKeyframe: (clipId && paramName !== null && time !== null)
-				? { clipId, paramName, time }
-				: null
+			selectedKeyframe:
+				clipId && paramName !== null && time !== null
+					? { clipId, paramName, time }
+					: null
 		}));
 	}
 };

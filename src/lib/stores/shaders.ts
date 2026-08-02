@@ -21,14 +21,14 @@ export const shaderLibraryActions = {
 	 * Load all shaders from the static directory
 	 */
 	async loadShaders() {
-		shaderLibrary.update(s => ({ ...s, loading: true, error: null }));
-		
+		shaderLibrary.update((s) => ({ ...s, loading: true, error: null }));
+
 		try {
 			const shaders = await loadShadersFromDirectory('/shaders');
-			shaderLibrary.update(s => ({ ...s, shaders, loading: false }));
+			shaderLibrary.update((s) => ({ ...s, shaders, loading: false }));
 		} catch (error) {
 			console.error('Error loading shaders:', error);
-			shaderLibrary.update(s => ({
+			shaderLibrary.update((s) => ({
 				...s,
 				loading: false,
 				error: error instanceof Error ? error.message : 'Failed to load shaders'
@@ -41,8 +41,8 @@ export const shaderLibraryActions = {
 	 */
 	getShader(name: string): ParsedISF | null {
 		let result: ParsedISF | null = null;
-		shaderLibrary.subscribe(s => {
-			result = s.shaders.find(shader => shader.filename === name) || null;
+		shaderLibrary.subscribe((s) => {
+			result = s.shaders.find((shader) => shader.filename === name) || null;
 		})();
 		return result;
 	}
