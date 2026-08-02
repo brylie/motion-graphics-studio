@@ -72,7 +72,6 @@
           parameterName={lane.name}
           keyframes={lane.keyframes}
           clipDuration={10}
-          clipStartTime={0}
           pixelsPerSecond={50}
           laneHeight={40}
           keyframeSize={8}

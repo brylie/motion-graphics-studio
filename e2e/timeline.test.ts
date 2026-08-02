@@ -90,7 +90,7 @@ test.describe('Timeline Interactions', () => {
 			const state = (window as any).__timelineStore?.get?.();
 			const clip = state?.tracks?.[0]?.clips?.find((c: any) => c.id === clipId);
 			const curve = clip?.automation?.find((c: any) => c.parameterName === 'speed');
-			return curve?.keyframes?.length === 0;
+			return !curve || curve.keyframes.length === 0;
 		}, { clipId });
 
 		expect(keyframeRemoved).toBe(true);
@@ -302,7 +302,10 @@ test.describe('Timeline Interactions', () => {
 		});
 
 		// Click mute button
-		const muteButton = page.locator('[data-track-id]').first().locator('button[aria-label*="mute"]').first();
+		const muteButton = page
+			.locator('[data-track-id]')
+			.first()
+			.getByRole('button', { name: 'Mute track' });
 		await muteButton.click();
 
 		// Verify mute state changed
@@ -322,7 +325,10 @@ test.describe('Timeline Interactions', () => {
 		});
 
 		// Click solo button
-		const soloButton = page.locator('[data-track-id]').first().locator('button[aria-label*="solo"]').first();
+		const soloButton = page
+			.locator('[data-track-id]')
+			.first()
+			.getByRole('button', { name: 'Solo track' });
 		await soloButton.click();
 
 		// Verify solo state changed

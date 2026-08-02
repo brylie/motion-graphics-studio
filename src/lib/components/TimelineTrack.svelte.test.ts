@@ -13,6 +13,7 @@ describe('TimelineTrack', () => {
 			clips: [],
 			muted: false,
 			solo: false,
+			height: 28,
 		};
 	});
 
@@ -42,7 +43,7 @@ describe('TimelineTrack', () => {
 		});
 
 		const trackElement = container.querySelector('.timeline-track') as HTMLElement;
-		expect(trackElement.style.minHeight).toBe('60px'); // TRACK_HEIGHT only
+		expect(trackElement.style.minHeight).toBe('28px'); // TRACK_HEIGHT only
 	});
 
 	it('calculates correct track height with automation lanes', () => {
@@ -53,6 +54,8 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 0,
 				duration: 10,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
@@ -82,8 +85,8 @@ describe('TimelineTrack', () => {
 		});
 
 		const trackElement = container.querySelector('.timeline-track') as HTMLElement;
-		// TRACK_HEIGHT (60) + 2 automation lanes * AUTOMATION_LANE_HEIGHT (40) = 140px
-		expect(trackElement.style.minHeight).toBe('140px');
+		// TRACK_HEIGHT (28) + 2 automation lanes * AUTOMATION_LANE_HEIGHT (50) = 128px
+		expect(trackElement.style.minHeight).toBe('128px');
 	});
 
 	it('renders automation lanes in separate rows', () => {
@@ -94,6 +97,8 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 0,
 				duration: 10,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
@@ -128,6 +133,8 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 0,
 				duration: 10,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
@@ -155,7 +162,7 @@ describe('TimelineTrack', () => {
 		// Each row should have its own height
 		automationRows.forEach((row) => {
 			const element = row as HTMLElement;
-			expect(element.style.height).toBe('40px'); // AUTOMATION_LANE_HEIGHT
+			expect(element.style.height).toBe('50px'); // AUTOMATION_LANE_HEIGHT
 		});
 
 		// The automation lanes container should use flexbox
@@ -173,6 +180,8 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 0,
 				duration: 5,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
@@ -186,6 +195,8 @@ describe('TimelineTrack', () => {
 				shaderName: 'Ripples',
 				startTime: 6,
 				duration: 4,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
@@ -222,6 +233,8 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 2,
 				duration: 5,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',

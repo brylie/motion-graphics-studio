@@ -7,7 +7,8 @@ describe('Timeline Store', () => {
 		// Reset timeline to initial state
 		timeline.set({
 			tracks: [],
-			duration: 60
+			duration: 60,
+			bpm: 120
 		});
 	});
 
