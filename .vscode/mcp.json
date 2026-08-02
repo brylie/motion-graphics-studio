@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "playwright-test": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "playwright",
+        "run-test-mcp-server"
+      ]
+    },
+    "svelte": {
+      "url": "https://mcp.svelte.dev/mcp"
+    }
+  },
+  "inputs": []
+}
