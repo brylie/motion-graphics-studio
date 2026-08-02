@@ -8,7 +8,8 @@ const meta = {
 		layout: 'padded',
 		docs: {
 			description: {
-				component: 'A reusable automation lane component that handles keyframe interaction for a single parameter. Each lane is isolated and handles its own coordinate space.'
+				component:
+					'A reusable automation lane component that handles keyframe interaction for a single parameter. Each lane is isolated and handles its own coordinate space.'
 			}
 		}
 	},

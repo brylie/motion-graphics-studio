@@ -8,7 +8,8 @@ const meta = {
 		layout: 'fullscreen',
 		docs: {
 			description: {
-				component: 'WebGL-based preview canvas that renders the composition in real-time. Composites multiple shader effects based on timeline configuration.'
+				component:
+					'WebGL-based preview canvas that renders the composition in real-time. Composites multiple shader effects based on timeline configuration.'
 			}
 		}
 	},

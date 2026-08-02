@@ -1,0 +1,25 @@
+default_stages: [pre-commit]
+
+repos:
+  - repo: local
+    hooks:
+      - id: format-check
+        name: Verify formatting
+        entry: npm run format:check
+        language: system
+        pass_filenames: false
+      - id: lint
+        name: Lint source files
+        entry: npm run lint
+        language: system
+        pass_filenames: false
+      - id: type-check
+        name: Type-check Svelte application
+        entry: npm run check
+        language: system
+        pass_filenames: false
+      - id: unit-tests
+        name: Run unit and component tests
+        entry: npm run test:unit -- --run
+        language: system
+        pass_filenames: false

@@ -97,12 +97,16 @@ test.describe('Drag and Drop', () => {
 	// NOTE: Playwright's dragTo() does NOT properly simulate HTML5 drag events from ShaderLibrary
 	// The drag events work in real browsers but Playwright can't trigger them correctly.
 	// This test is skipped - manual testing required for Shader Library drag-and-drop.
-	test.skip('should drag and drop shader from library using UI drag events', async ({ page }) => {
+	test.skip('should drag and drop shader from library using UI drag events', async ({
+		page
+	}) => {
 		// This test documents the expected behavior but can't be automated with Playwright
 		// Manual test: Drag Plasma shader from library and drop on Track 1
 		// Expected: Clip should be created at drop position
-		
-		const shaderCard = page.locator('.shader-card', { hasText: 'Plasma' }).first();
+
+		const shaderCard = page
+			.locator('.shader-card', { hasText: 'Plasma' })
+			.first();
 		await expect(shaderCard).toBeVisible();
 
 		const track1 = page.locator('[data-track-id]').first();
@@ -118,7 +122,7 @@ test.describe('Drag and Drop', () => {
 			const state = (window as any).__timelineStore?.get?.();
 			return state?.tracks?.[0]?.clips?.length || 0;
 		});
-		
+
 		expect(clipCount).toBeGreaterThan(0);
 	});
 
@@ -208,7 +212,9 @@ test.describe('Drag and Drop', () => {
 		expect(counts.track3).toBe(1);
 	});
 
-	test('should preserve clip properties when moving between tracks', async ({ page }) => {
+	test('should preserve clip properties when moving between tracks', async ({
+		page
+	}) => {
 		// Add a clip with automation to track 1
 		const clipId = await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
@@ -252,7 +258,9 @@ test.describe('Drag and Drop', () => {
 			const track2Clip = state?.tracks?.[1]?.clips?.[0];
 			if (!track2Clip) return false;
 
-			const speedCurve = track2Clip.automation?.find((c: any) => c.parameterName === 'speed');
+			const speedCurve = track2Clip.automation?.find(
+				(c: any) => c.parameterName === 'speed'
+			);
 			return speedCurve && speedCurve.keyframes.length === 2;
 		});
 
@@ -284,7 +292,10 @@ test.describe('Drag and Drop', () => {
 		const clipBox = await clip.boundingBox();
 		expect(clipBox).not.toBeNull();
 
-		await page.mouse.move(clipBox!.x + clipBox!.width / 2, clipBox!.y + clipBox!.height / 2);
+		await page.mouse.move(
+			clipBox!.x + clipBox!.width / 2,
+			clipBox!.y + clipBox!.height / 2
+		);
 		await page.mouse.down();
 		await page.mouse.move(clipBox!.x + 200, clipBox!.y + clipBox!.height / 2);
 		await page.mouse.up();
@@ -301,7 +312,9 @@ test.describe('Drag and Drop', () => {
 
 	// NOTE: Skipped due to Playwright limitation - cannot trigger HTML5 dragover events with mouse.move()
 	// Preview rectangle works correctly in manual browser testing
-	test.skip('should show preview rectangle when dragging shader from library', async ({ page }) => {
+	test.skip('should show preview rectangle when dragging shader from library', async ({
+		page
+	}) => {
 		// Find a shader in the library
 		const shaderCard = page.locator('.shader-card').first();
 		await expect(shaderCard).toBeVisible();
@@ -332,7 +345,9 @@ test.describe('Drag and Drop', () => {
 
 	// NOTE: Skipped due to Playwright limitation - cannot trigger HTML5 dragover events
 	// ESC key cancellation works correctly in manual browser testing
-	test.skip('should hide preview rectangle when drag is cancelled', async ({ page }) => {
+	test.skip('should hide preview rectangle when drag is cancelled', async ({
+		page
+	}) => {
 		// Find a shader in the library
 		const shaderCard = page.locator('.shader-card').first();
 		await expect(shaderCard).toBeVisible();
@@ -367,7 +382,9 @@ test.describe('Drag and Drop', () => {
 
 	// NOTE: Skipped due to Playwright limitation - cannot trigger HTML5 dragover events
 	// Preview position updates work correctly in manual browser testing
-	test.skip('should update preview position when moving between tracks', async ({ page }) => {
+	test.skip('should update preview position when moving between tracks', async ({
+		page
+	}) => {
 		// Find a shader in the library
 		const shaderCard = page.locator('.shader-card').first();
 		await expect(shaderCard).toBeVisible();
@@ -392,7 +409,9 @@ test.describe('Drag and Drop', () => {
 		// Get initial preview position
 		const preview = page.locator('.clip-preview');
 		await expect(preview).toBeVisible();
-		const initialTop = await preview.evaluate(el => el.getBoundingClientRect().top);
+		const initialTop = await preview.evaluate(
+			(el) => el.getBoundingClientRect().top
+		);
 
 		// Move over track 2
 		const track2Box = await track2.boundingBox();
@@ -401,14 +420,18 @@ test.describe('Drag and Drop', () => {
 		await page.waitForTimeout(50);
 
 		// Preview position should have changed
-		const newTop = await preview.evaluate(el => el.getBoundingClientRect().top);
+		const newTop = await preview.evaluate(
+			(el) => el.getBoundingClientRect().top
+		);
 		expect(newTop).not.toBe(initialTop);
 
 		// Cleanup
 		await page.mouse.up();
 	});
 
-	test('should drop shader at different horizontal positions', async ({ page }) => {
+	test('should drop shader at different horizontal positions', async ({
+		page
+	}) => {
 		// Add clip directly at specific time position (5 seconds)
 		await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;
@@ -461,7 +484,9 @@ test.describe('Drag and Drop', () => {
 		expect(clipCount).toBe(2);
 	});
 
-	test('should show drag-over effect on track when hovering', async ({ page }) => {
+	test('should show drag-over effect on track when hovering', async ({
+		page
+	}) => {
 		// Find a shader in the library
 		const shaderCard = page.locator('.shader-card').first();
 		await expect(shaderCard).toBeVisible();
@@ -483,7 +508,9 @@ test.describe('Drag and Drop', () => {
 		await page.waitForTimeout(100);
 
 		// Check if track has drag-over class
-		const hasDragOverClass = await track1.evaluate(el => el.classList.contains('drag-over'));
+		const hasDragOverClass = await track1.evaluate((el) =>
+			el.classList.contains('drag-over')
+		);
 		expect(hasDragOverClass).toBe(true);
 
 		// Cleanup
@@ -501,14 +528,14 @@ test.describe('Drag and Drop', () => {
 			}
 			return false;
 		});
-		
+
 		// Verify clip was added via API
 		expect(added).toBe(true);
 
 		// Wait for clip to appear in UI
 		const track1 = page.locator('[data-track-id]').first();
 		await page.waitForTimeout(100);
-		
+
 		// Verify clip was created at start
 		const result = await page.evaluate(() => {
 			const state = (window as any).__timelineStore?.get?.();
@@ -517,15 +544,17 @@ test.describe('Drag and Drop', () => {
 				startTime: state?.tracks?.[0]?.clips?.[0]?.startTime
 			};
 		});
-		
+
 		expect(result.clipCount).toBeGreaterThan(0);
 		expect(result.startTime).toBe(0);
-		
+
 		// Now verify it's visible
 		await expect(track1.locator('.timeline-clip').first()).toBeVisible();
 	});
 
-	test('should preserve existing clips when dropping new shader', async ({ page }) => {
+	test('should preserve existing clips when dropping new shader', async ({
+		page
+	}) => {
 		// Add first clip via code
 		await page.evaluate(() => {
 			const actions = (window as any).__timelineActions;

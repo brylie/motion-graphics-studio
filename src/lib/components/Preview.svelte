@@ -68,7 +68,7 @@
     }
   }
 
-  onMount(async () => {
+  onMount(() => {
     // Wait for shaders to load
     const unsubscribe = shaderLibrary.subscribe(async (lib) => {
       if (lib.shaders.length > 0 && !isInitialized) {

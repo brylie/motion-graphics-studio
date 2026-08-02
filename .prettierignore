@@ -1,0 +1,8 @@
+.claude
+.codex
+.svelte-kit
+coverage
+node_modules
+playwright-report
+storybook-static
+test-results

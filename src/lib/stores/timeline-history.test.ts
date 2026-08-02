@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { timeline, timelineActions, timelineView, viewActions } from './timeline';
+import { timeline, timelineActions } from './timeline';
 import { get } from 'svelte/store';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -137,7 +137,9 @@ describe('Timeline with time-travel debugging', () => {
 		expect(get(timeline).tracks[0].clips[0].duration).toBe(5);
 
 		timeline.undo(); // Undo second keyframe
-		expect(get(timeline).tracks[0].clips[0].automation[0].keyframes).toHaveLength(1);
+		expect(
+			get(timeline).tracks[0].clips[0].automation[0].keyframes
+		).toHaveLength(1);
 
 		timeline.undo(); // Undo first keyframe
 		expect(get(timeline).tracks[0].clips[0].automation).toHaveLength(0);
@@ -153,6 +155,8 @@ describe('Timeline with time-travel debugging', () => {
 
 		// Verify final state
 		expect(get(timeline).tracks[0].clips[0].duration).toBe(10);
-		expect(get(timeline).tracks[0].clips[0].automation[0].keyframes).toHaveLength(2);
+		expect(
+			get(timeline).tracks[0].clips[0].automation[0].keyframes
+		).toHaveLength(2);
 	});
 });

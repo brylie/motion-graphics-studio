@@ -8,7 +8,8 @@ const meta = {
 		layout: 'fullscreen',
 		docs: {
 			description: {
-				component: 'A complete timeline track with label, clips, and automation lanes. Supports drag-and-drop, clip selection, and automation keyframe editing.'
+				component:
+					'A complete timeline track with label, clips, and automation lanes. Supports drag-and-drop, clip selection, and automation keyframe editing.'
 			}
 		}
 	},

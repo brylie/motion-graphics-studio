@@ -34,7 +34,11 @@ export class CompositionRenderer {
 	private blitProgram: WebGLProgram | null = null;
 	private blitVAO: WebGLVertexArrayObject | null = null;
 
-	constructor(canvas: HTMLCanvasElement, width: number = 1920, height: number = 1080) {
+	constructor(
+		canvas: HTMLCanvasElement,
+		width: number = 1920,
+		height: number = 1080
+	) {
 		this.canvas = canvas;
 		this.width = width;
 		this.height = height;
@@ -56,46 +60,46 @@ export class CompositionRenderer {
 
 		// Create framebuffers for compositing
 		this.createFramebuffers(2);
-		
+
 		// Initialize blit shader for final output
 		this.initBlitShader();
 	}
 
 	private initBlitShader() {
 		const { gl } = this;
-		
+
 		// Compile shaders
 		const vertShader = gl.createShader(gl.VERTEX_SHADER);
 		const fragShader = gl.createShader(gl.FRAGMENT_SHADER);
 		if (!vertShader || !fragShader) return;
-		
+
 		gl.shaderSource(vertShader, BLIT_VERTEX_SHADER);
 		gl.compileShader(vertShader);
-		
+
 		gl.shaderSource(fragShader, BLIT_FRAGMENT_SHADER);
 		gl.compileShader(fragShader);
-		
+
 		// Link program
 		const program = gl.createProgram();
 		if (!program) return;
-		
+
 		gl.attachShader(program, vertShader);
 		gl.attachShader(program, fragShader);
 		gl.linkProgram(program);
-		
+
 		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
 			console.error('Blit shader link error:', gl.getProgramInfoLog(program));
 			return;
 		}
-		
+
 		this.blitProgram = program;
-		
+
 		// Create VAO for fullscreen quad
 		const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 		const buffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-		
+
 		this.blitVAO = gl.createVertexArray();
 		gl.bindVertexArray(this.blitVAO);
 		const posLoc = gl.getAttribLocation(program, 'position');
@@ -103,7 +107,6 @@ export class CompositionRenderer {
 		gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 		gl.bindVertexArray(null);
 	}
-
 
 	private createFramebuffers(count: number) {
 		for (let i = 0; i < count; i++) {
@@ -126,10 +129,26 @@ export class CompositionRenderer {
 				this.gl.UNSIGNED_BYTE,
 				null
 			);
-			this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-			this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-			this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-			this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+			this.gl.texParameteri(
+				this.gl.TEXTURE_2D,
+				this.gl.TEXTURE_MIN_FILTER,
+				this.gl.LINEAR
+			);
+			this.gl.texParameteri(
+				this.gl.TEXTURE_2D,
+				this.gl.TEXTURE_MAG_FILTER,
+				this.gl.LINEAR
+			);
+			this.gl.texParameteri(
+				this.gl.TEXTURE_2D,
+				this.gl.TEXTURE_WRAP_S,
+				this.gl.CLAMP_TO_EDGE
+			);
+			this.gl.texParameteri(
+				this.gl.TEXTURE_2D,
+				this.gl.TEXTURE_WRAP_T,
+				this.gl.CLAMP_TO_EDGE
+			);
 
 			this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, framebuffer);
 			this.gl.framebufferTexture2D(
@@ -195,7 +214,7 @@ export class CompositionRenderer {
 		}
 
 		// Update shader parameters with current values (including automation)
-		for (const [paramName, paramValue] of Object.entries(clip.parameters)) {
+		for (const paramName of Object.keys(clip.parameters)) {
 			const currentValue = getParameterValue(clip, paramName, time);
 			renderer.setParameter(paramName, currentValue);
 		}
@@ -206,7 +225,7 @@ export class CompositionRenderer {
 
 		// Calculate local time for the clip
 		const localTime = time - clip.startTime;
-		
+
 		// Update renderer time
 		renderer.setTime(localTime);
 
@@ -234,17 +253,21 @@ export class CompositionRenderer {
 		let hasContent = false;
 
 		// Process tracks from bottom to top
-		for (let trackIndex = timeline.tracks.length - 1; trackIndex >= 0; trackIndex--) {
+		for (
+			let trackIndex = timeline.tracks.length - 1;
+			trackIndex >= 0;
+			trackIndex--
+		) {
 			const track = timeline.tracks[trackIndex];
 
 			// Skip muted tracks or solo tracks when others are soloed
-			const hasSolo = timeline.tracks.some(t => t.solo);
+			const hasSolo = timeline.tracks.some((t) => t.solo);
 			if (track.muted || (hasSolo && !track.solo)) {
 				continue;
 			}
 
 			// Get active clips for this track
-		const activeClips = getActiveClips(track, time);
+			const activeClips = getActiveClips(track, time);
 
 			for (const clip of activeClips) {
 				const inputTexture = hasContent ? this.textures[currentFBIndex] : null;
@@ -257,7 +280,12 @@ export class CompositionRenderer {
 				this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
 				// Render clip
-				const rendered = this.renderClip(clip, time, inputTexture, outputFramebuffer);
+				const rendered = this.renderClip(
+					clip,
+					time,
+					inputTexture,
+					outputFramebuffer
+				);
 
 				if (rendered) {
 					currentFBIndex = outputFBIndex;
@@ -269,19 +297,22 @@ export class CompositionRenderer {
 		// Copy final result to canvas
 		if (hasContent && this.blitProgram && this.blitVAO) {
 			const finalTexture = this.textures[currentFBIndex];
-			
+
 			// Unbind framebuffer to draw to canvas
 			this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 			this.gl.viewport(0, 0, this.width, this.height);
-			
+
 			// Use blit shader
 			this.gl.useProgram(this.blitProgram);
-			
+
 			// Bind the final texture
 			this.gl.activeTexture(this.gl.TEXTURE0);
 			this.gl.bindTexture(this.gl.TEXTURE_2D, finalTexture);
-			this.gl.uniform1i(this.gl.getUniformLocation(this.blitProgram, 'uTexture'), 0);
-			
+			this.gl.uniform1i(
+				this.gl.getUniformLocation(this.blitProgram, 'uTexture'),
+				0
+			);
+
 			// Draw fullscreen quad
 			this.gl.bindVertexArray(this.blitVAO);
 			this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
@@ -324,7 +355,7 @@ export class CompositionRenderer {
 	 */
 	destroy() {
 		this.destroyFramebuffers();
-		
+
 		for (const renderer of this.renderers.values()) {
 			renderer.destroy();
 		}

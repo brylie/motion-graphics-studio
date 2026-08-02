@@ -8,7 +8,8 @@ const meta = {
 		layout: 'fullscreen',
 		docs: {
 			description: {
-				component: 'A timeline ruler that displays time markers and allows scrubbing through the timeline. The ruler adjusts marker density based on zoom level.'
+				component:
+					'A timeline ruler that displays time markers and allows scrubbing through the timeline. The ruler adjusts marker density based on zoom level.'
 			}
 		}
 	},

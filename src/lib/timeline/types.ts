@@ -62,14 +62,17 @@ export interface DragState {
 /**
  * Interpolate between keyframes
  */
-export function interpolateKeyframes(keyframes: Keyframe[], time: number): number {
+export function interpolateKeyframes(
+	keyframes: Keyframe[],
+	time: number
+): number {
 	if (keyframes.length === 0) return 0;
 	if (keyframes.length === 1) return keyframes[0].value;
-	
+
 	// Find surrounding keyframes
 	let before: Keyframe | null = null;
 	let after: Keyframe | null = null;
-	
+
 	for (let i = 0; i < keyframes.length; i++) {
 		if (keyframes[i].time <= time) {
 			before = keyframes[i];
@@ -79,7 +82,7 @@ export function interpolateKeyframes(keyframes: Keyframe[], time: number): numbe
 			break;
 		}
 	}
-	
+
 	// Before first keyframe
 	if (!before && after) return after.value;
 	// After last keyframe
@@ -89,7 +92,7 @@ export function interpolateKeyframes(keyframes: Keyframe[], time: number): numbe
 		const t = (time - before.time) / (after.time - before.time);
 		return before.value + (after.value - before.value) * t;
 	}
-	
+
 	return 0;
 }
 
@@ -97,7 +100,7 @@ export function interpolateKeyframes(keyframes: Keyframe[], time: number): numbe
  * Get active clips at a specific time
  */
 export function getActiveClips(track: Track, time: number): Clip[] {
-	return track.clips.filter(clip => {
+	return track.clips.filter((clip) => {
 		const endTime = clip.startTime + clip.duration;
 		return time >= clip.startTime && time < endTime;
 	});
@@ -106,15 +109,19 @@ export function getActiveClips(track: Track, time: number): Clip[] {
 /**
  * Get parameter value at specific time with automation
  */
-export function getParameterValue(clip: Clip, parameterName: string, time: number): any {
+export function getParameterValue(
+	clip: Clip,
+	parameterName: string,
+	time: number
+): any {
 	// Find automation curve for this parameter
-	const curve = clip.automation.find(c => c.parameterName === parameterName);
-	
+	const curve = clip.automation.find((c) => c.parameterName === parameterName);
+
 	if (curve && curve.keyframes.length > 0) {
 		// Use automation
 		return interpolateKeyframes(curve.keyframes, time - clip.startTime);
 	}
-	
+
 	// Use static value
 	return clip.parameters[parameterName];
 }

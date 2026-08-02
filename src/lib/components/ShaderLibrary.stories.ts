@@ -8,7 +8,8 @@ const meta = {
 		layout: 'padded',
 		docs: {
 			description: {
-				component: 'A panel displaying available ISF shaders with search and category filtering. Shaders can be dragged onto the timeline or clicked to add them.'
+				component:
+					'A panel displaying available ISF shaders with search and category filtering. Shaders can be dragged onto the timeline or clicked to add them.'
 			}
 		}
 	},
@@ -38,7 +39,8 @@ export const WithShaders: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: 'Library populated with multiple available shaders for drag-and-drop.'
+				story:
+					'Library populated with multiple available shaders for drag-and-drop.'
 			}
 		}
 	}

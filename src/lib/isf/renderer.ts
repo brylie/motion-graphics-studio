@@ -1,5 +1,5 @@
-import type { ParsedISF, CompiledShader, ISFInput } from './types';
-import { setUniform, setStandardUniforms, createEmptyTexture } from './uniforms';
+import type { ParsedISF, CompiledShader } from './types';
+import { setUniform, setStandardUniforms } from './uniforms';
 
 // Default vertex shader for ISF
 const DEFAULT_VERTEX_SHADER = `#version 300 es
@@ -26,15 +26,15 @@ export class ISFRenderer {
 	private compiled: CompiledShader | null = null;
 	private vertexBuffer: WebGLBuffer | null = null;
 	private vao: WebGLVertexArrayObject | null = null;
-	
+
 	// Parameter values
 	private parameterValues: { [key: string]: any } = {};
 	private inputTextures: Map<string, WebGLTexture> = new Map();
-	
+
 	// Framebuffers for multi-pass rendering
 	private framebuffers: Map<string, WebGLFramebuffer> = new Map();
 	private framebufferTextures: Map<string, WebGLTexture> = new Map();
-	
+
 	private time: number = 0;
 	private renderSize: [number, number] = [800, 600];
 
@@ -44,11 +44,11 @@ export class ISFRenderer {
 			premultipliedAlpha: false,
 			preserveDrawingBuffer: true
 		});
-		
+
 		if (!gl) {
 			throw new Error('WebGL2 not supported');
 		}
-		
+
 		this.gl = gl;
 		this.initializeGeometry();
 	}
@@ -58,12 +58,7 @@ export class ISFRenderer {
 	 */
 	private initializeGeometry(): void {
 		// Full-screen quad
-		const vertices = new Float32Array([
-			-1, -1,
-			 1, -1,
-			-1,  1,
-			 1,  1
-		]);
+		const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 
 		this.vertexBuffer = this.gl.createBuffer();
 		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
@@ -84,17 +79,23 @@ export class ISFRenderer {
 	 */
 	private getUniformType(type: string): string {
 		switch (type) {
-			case 'float': return 'float';
-			case 'color': return 'vec4';
+			case 'float':
+				return 'float';
+			case 'color':
+				return 'vec4';
 			case 'point2D':
-			case 'vec2': return 'vec2';
+			case 'vec2':
+				return 'vec2';
 			case 'bool':
 			case 'long':
-			case 'event': return 'int';
+			case 'event':
+				return 'int';
 			case 'image':
 			case 'audio':
-			case 'audioFFT': return 'sampler2D';
-			default: return 'float';
+			case 'audioFFT':
+				return 'sampler2D';
+			default:
+				return 'float';
 		}
 	}
 
@@ -109,7 +110,10 @@ export class ISFRenderer {
 		this.gl.compileShader(shader);
 
 		if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
-			console.error('Shader compilation error:', this.gl.getShaderInfoLog(shader));
+			console.error(
+				'Shader compilation error:',
+				this.gl.getShaderInfoLog(shader)
+			);
 			this.gl.deleteShader(shader);
 			return null;
 		}
@@ -122,46 +126,51 @@ export class ISFRenderer {
 	 */
 	loadShader(parsedISF: ParsedISF): boolean {
 		this.shader = parsedISF;
-		
+
 		// Check if shader already has #version directive
-		let shaderCode = parsedISF.fragmentShader;
+		const shaderCode = parsedISF.fragmentShader;
 		const versionMatch = shaderCode.match(/#version\s+\d+\s+es/);
-		
+
 		// Extract existing version and shader body
 		let existingVersion = '';
 		let shaderBody = shaderCode;
 		if (versionMatch) {
 			existingVersion = versionMatch[0];
-			shaderBody = shaderCode.substring(versionMatch.index! + versionMatch[0].length).trim();
+			shaderBody = shaderCode
+				.substring(versionMatch.index! + versionMatch[0].length)
+				.trim();
 		}
-		
+
 		// Build fragment shader - order matters in GLSL!
 		// 1. Version directive
 		let fragmentSource = existingVersion || '#version 300 es';
 		fragmentSource += '\n';
-		
+
 		// 2. Precision (MUST come before any code)
 		fragmentSource += 'precision highp float;\n';
-		
+
 		// 3. Out variable (always add, we'll strip from body)
 		fragmentSource += 'out vec4 fragColor;\n';
-		
+
 		// Strip precision and out declarations from shader body to avoid duplicates
 		shaderBody = shaderBody.replace(/precision\s+\w+\s+float\s*;/g, '');
 		shaderBody = shaderBody.replace(/out\s+vec4\s+fragColor\s*;/g, '');
 		shaderBody = shaderBody.trim();
-		
+
 		// 4. Add ISF helper functions
 		fragmentSource += ISF_GLSL_FUNCTIONS;
-		
+
 		// Add uniforms only if not already declared
 		if (!shaderBody.includes('uniform float TIME')) {
 			fragmentSource += 'uniform float TIME;\n';
 		}
-		if (!shaderBody.includes('uniform vec3 RENDERSIZE') && !shaderBody.includes('uniform vec2 RENDERSIZE')) {
+		if (
+			!shaderBody.includes('uniform vec3 RENDERSIZE') &&
+			!shaderBody.includes('uniform vec2 RENDERSIZE')
+		) {
 			fragmentSource += 'uniform vec3 RENDERSIZE;\n';
 		}
-		
+
 		// Add uniforms for inputs (only if not already declared)
 		for (const input of parsedISF.metadata.INPUTS) {
 			const uniformDecl = `uniform ${this.getUniformType(input.TYPE)} ${input.NAME}`;
@@ -190,17 +199,23 @@ export class ISFRenderer {
 				}
 			}
 		}
-		
+
 		// Replace gl_FragColor with fragColor for GLSL 300 es
 		shaderBody = shaderBody.replace(/gl_FragColor/g, 'fragColor');
 		fragmentSource += shaderBody;
 
 		// Compile vertex shader
-		const vertexShader = this.compileShader(DEFAULT_VERTEX_SHADER, this.gl.VERTEX_SHADER);
+		const vertexShader = this.compileShader(
+			DEFAULT_VERTEX_SHADER,
+			this.gl.VERTEX_SHADER
+		);
 		if (!vertexShader) return false;
 
 		// Compile fragment shader
-		const fragmentShader = this.compileShader(fragmentSource, this.gl.FRAGMENT_SHADER);
+		const fragmentShader = this.compileShader(
+			fragmentSource,
+			this.gl.FRAGMENT_SHADER
+		);
 		if (!fragmentShader) {
 			this.gl.deleteShader(vertexShader);
 			return false;
@@ -219,7 +234,10 @@ export class ISFRenderer {
 		this.gl.linkProgram(program);
 
 		if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
-			console.error('Program linking error:', this.gl.getProgramInfoLog(program));
+			console.error(
+				'Program linking error:',
+				this.gl.getProgramInfoLog(program)
+			);
 			this.gl.deleteProgram(program);
 			this.gl.deleteShader(vertexShader);
 			this.gl.deleteShader(fragmentShader);
@@ -230,7 +248,7 @@ export class ISFRenderer {
 		const uniforms: { [key: string]: WebGLUniformLocation | null } = {};
 		uniforms.TIME = this.gl.getUniformLocation(program, 'TIME');
 		uniforms.RENDERSIZE = this.gl.getUniformLocation(program, 'RENDERSIZE');
-		
+
 		for (const input of parsedISF.metadata.INPUTS) {
 			uniforms[input.NAME] = this.gl.getUniformLocation(program, input.NAME);
 		}
@@ -240,10 +258,10 @@ export class ISFRenderer {
 		attributes.position = this.gl.getAttribLocation(program, 'position');
 
 		this.compiled = { program, uniforms, attributes };
-		
+
 		// Initialize parameter values with defaults
 		this.resetParameters();
-		
+
 		return true;
 	}
 
@@ -252,7 +270,7 @@ export class ISFRenderer {
 	 */
 	resetParameters(): void {
 		if (!this.shader) return;
-		
+
 		this.parameterValues = {};
 		for (const input of this.shader.metadata.INPUTS) {
 			if (input.DEFAULT !== undefined) {
@@ -296,29 +314,33 @@ export class ISFRenderer {
 		if (!this.compiled || !this.shader) return;
 
 		const { gl } = this;
-		
+
 		// Bind output framebuffer (null = screen)
 		gl.bindFramebuffer(gl.FRAMEBUFFER, outputFramebuffer);
-		
+
 		// Set viewport
 		gl.viewport(0, 0, this.renderSize[0], this.renderSize[1]);
-		
+
 		// Clear
 		gl.clearColor(0, 0, 0, 0);
 		gl.clear(gl.COLOR_BUFFER_BIT);
-		
+
 		// Use shader program
 		gl.useProgram(this.compiled.program);
-		
+
 		// Set standard uniforms
 		setStandardUniforms(gl, this.compiled.uniforms, this.time, this.renderSize);
-		
+
 		// Set parameter uniforms
 		let textureUnit = 0;
 		for (const input of this.shader.metadata.INPUTS) {
 			const location = this.compiled.uniforms[input.NAME];
-			
-			if (input.TYPE === 'image' || input.TYPE === 'audio' || input.TYPE === 'audioFFT') {
+
+			if (
+				input.TYPE === 'image' ||
+				input.TYPE === 'audio' ||
+				input.TYPE === 'audioFFT'
+			) {
 				// Bind texture
 				const texture = this.inputTextures.get(input.NAME);
 				if (texture) {
@@ -335,7 +357,7 @@ export class ISFRenderer {
 				}
 			}
 		}
-		
+
 		// Draw
 		if (this.vao) {
 			gl.bindVertexArray(this.vao);
@@ -352,29 +374,29 @@ export class ISFRenderer {
 			this.gl.deleteProgram(this.compiled.program);
 			this.compiled = null;
 		}
-		
+
 		if (this.vertexBuffer) {
 			this.gl.deleteBuffer(this.vertexBuffer);
 			this.vertexBuffer = null;
 		}
-		
+
 		if (this.vao) {
 			this.gl.deleteVertexArray(this.vao);
 			this.vao = null;
 		}
-		
+
 		// Clean up textures
 		for (const texture of this.inputTextures.values()) {
 			this.gl.deleteTexture(texture);
 		}
 		this.inputTextures.clear();
-		
+
 		// Clean up framebuffers
 		for (const fb of this.framebuffers.values()) {
 			this.gl.deleteFramebuffer(fb);
 		}
 		this.framebuffers.clear();
-		
+
 		for (const tex of this.framebufferTextures.values()) {
 			this.gl.deleteTexture(tex);
 		}

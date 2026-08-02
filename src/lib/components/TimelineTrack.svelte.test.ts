@@ -13,6 +13,7 @@ describe('TimelineTrack', () => {
 			clips: [],
 			muted: false,
 			solo: false,
+			height: 28
 		};
 	});
 
@@ -22,8 +23,8 @@ describe('TimelineTrack', () => {
 				track: mockTrack,
 				pixelsPerSecond: 50,
 				selectedClipId: null,
-				selectedKeyframe: null,
-			},
+				selectedKeyframe: null
+			}
 		});
 
 		expect(getByText('Track 1')).toBeTruthy();
@@ -37,12 +38,14 @@ describe('TimelineTrack', () => {
 				track: mockTrack,
 				pixelsPerSecond: 50,
 				selectedClipId: null,
-				selectedKeyframe: null,
-			},
+				selectedKeyframe: null
+			}
 		});
 
-		const trackElement = container.querySelector('.timeline-track') as HTMLElement;
-		expect(trackElement.style.minHeight).toBe('60px'); // TRACK_HEIGHT only
+		const trackElement = container.querySelector(
+			'.timeline-track'
+		) as HTMLElement;
+		expect(trackElement.style.minHeight).toBe('28px'); // TRACK_HEIGHT only
 	});
 
 	it('calculates correct track height with automation lanes', () => {
@@ -53,23 +56,25 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 0,
 				duration: 10,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
 						keyframes: [
 							{ time: 0, value: 0 },
-							{ time: 5, value: 50 },
-						],
+							{ time: 5, value: 50 }
+						]
 					},
 					{
 						parameterName: 'scale',
 						keyframes: [
 							{ time: 0, value: 1 },
-							{ time: 5, value: 2 },
-						],
-					},
-				],
-			},
+							{ time: 5, value: 2 }
+						]
+					}
+				]
+			}
 		];
 
 		const { container } = render(TimelineTrack, {
@@ -77,13 +82,15 @@ describe('TimelineTrack', () => {
 				track: mockTrack,
 				pixelsPerSecond: 50,
 				selectedClipId: null,
-				selectedKeyframe: null,
-			},
+				selectedKeyframe: null
+			}
 		});
 
-		const trackElement = container.querySelector('.timeline-track') as HTMLElement;
-		// TRACK_HEIGHT (60) + 2 automation lanes * AUTOMATION_LANE_HEIGHT (40) = 140px
-		expect(trackElement.style.minHeight).toBe('140px');
+		const trackElement = container.querySelector(
+			'.timeline-track'
+		) as HTMLElement;
+		// TRACK_HEIGHT (28) + 2 automation lanes * AUTOMATION_LANE_HEIGHT (50) = 128px
+		expect(trackElement.style.minHeight).toBe('128px');
 	});
 
 	it('renders automation lanes in separate rows', () => {
@@ -94,17 +101,19 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 0,
 				duration: 10,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
-						keyframes: [{ time: 0, value: 0 }],
+						keyframes: [{ time: 0, value: 0 }]
 					},
 					{
 						parameterName: 'scale',
-						keyframes: [{ time: 0, value: 1 }],
-					},
-				],
-			},
+						keyframes: [{ time: 0, value: 1 }]
+					}
+				]
+			}
 		];
 
 		const { container } = render(TimelineTrack, {
@@ -112,8 +121,8 @@ describe('TimelineTrack', () => {
 				track: mockTrack,
 				pixelsPerSecond: 50,
 				selectedClipId: null,
-				selectedKeyframe: null,
-			},
+				selectedKeyframe: null
+			}
 		});
 
 		const automationRows = container.querySelectorAll('.automation-lane-row');
@@ -128,17 +137,19 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 0,
 				duration: 10,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
-						keyframes: [{ time: 0, value: 0 }],
+						keyframes: [{ time: 0, value: 0 }]
 					},
 					{
 						parameterName: 'scale',
-						keyframes: [{ time: 0, value: 1 }],
-					},
-				],
-			},
+						keyframes: [{ time: 0, value: 1 }]
+					}
+				]
+			}
 		];
 
 		const { container } = render(TimelineTrack, {
@@ -146,20 +157,22 @@ describe('TimelineTrack', () => {
 				track: mockTrack,
 				pixelsPerSecond: 50,
 				selectedClipId: null,
-				selectedKeyframe: null,
-			},
+				selectedKeyframe: null
+			}
 		});
 
 		const automationRows = container.querySelectorAll('.automation-lane-row');
-		
+
 		// Each row should have its own height
 		automationRows.forEach((row) => {
 			const element = row as HTMLElement;
-			expect(element.style.height).toBe('40px'); // AUTOMATION_LANE_HEIGHT
+			expect(element.style.height).toBe('50px'); // AUTOMATION_LANE_HEIGHT
 		});
 
 		// The automation lanes container should use flexbox
-		const automationLanesContainer = container.querySelector('.automation-lanes') as HTMLElement;
+		const automationLanesContainer = container.querySelector(
+			'.automation-lanes'
+		) as HTMLElement;
 		const computedStyle = window.getComputedStyle(automationLanesContainer);
 		expect(computedStyle.display).toBe('flex');
 		expect(computedStyle.flexDirection).toBe('column');
@@ -173,12 +186,14 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 0,
 				duration: 5,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
-						keyframes: [{ time: 0, value: 0 }],
-					},
-				],
+						keyframes: [{ time: 0, value: 0 }]
+					}
+				]
 			},
 			{
 				id: 'clip-2',
@@ -186,13 +201,15 @@ describe('TimelineTrack', () => {
 				shaderName: 'Ripples',
 				startTime: 6,
 				duration: 4,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
-						keyframes: [{ time: 0, value: 50 }],
-					},
-				],
-			},
+						keyframes: [{ time: 0, value: 50 }]
+					}
+				]
+			}
 		];
 
 		const { container } = render(TimelineTrack, {
@@ -200,8 +217,8 @@ describe('TimelineTrack', () => {
 				track: mockTrack,
 				pixelsPerSecond: 50,
 				selectedClipId: null,
-				selectedKeyframe: null,
-			},
+				selectedKeyframe: null
+			}
 		});
 
 		// Should only have 1 row for 'speed' parameter shared across both clips
@@ -222,13 +239,15 @@ describe('TimelineTrack', () => {
 				shaderName: 'Plasma',
 				startTime: 2,
 				duration: 5,
+				parameters: {},
+				alpha: 1,
 				automation: [
 					{
 						parameterName: 'speed',
-						keyframes: [{ time: 0, value: 0 }],
-					},
-				],
-			},
+						keyframes: [{ time: 0, value: 0 }]
+					}
+				]
+			}
 		];
 
 		const { container } = render(TimelineTrack, {
@@ -236,14 +255,16 @@ describe('TimelineTrack', () => {
 				track: mockTrack,
 				pixelsPerSecond,
 				selectedClipId: null,
-				selectedKeyframe: null,
-			},
+				selectedKeyframe: null
+			}
 		});
 
-		const wrapper = container.querySelector('.automation-lane-wrapper') as HTMLElement;
+		const wrapper = container.querySelector(
+			'.automation-lane-wrapper'
+		) as HTMLElement;
 		const expectedLeft = 2 * pixelsPerSecond; // startTime * pixelsPerSecond
 		const expectedWidth = 5 * pixelsPerSecond; // duration * pixelsPerSecond
-		
+
 		expect(wrapper.style.left).toBe(`${expectedLeft}px`);
 		expect(wrapper.style.width).toBe(`${expectedWidth}px`);
 	});
