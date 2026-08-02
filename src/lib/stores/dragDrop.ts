@@ -7,7 +7,8 @@ export function applyDropEffect(
 	dragType: DragType
 ) {
 	if (!dataTransfer) return;
-	dataTransfer.dropEffect = dragType === 'clip' ? 'move' : 'copy';
+	dataTransfer.dropEffect =
+		dragType === null ? 'none' : dragType === 'clip' ? 'move' : 'copy';
 }
 
 export interface DragState {
