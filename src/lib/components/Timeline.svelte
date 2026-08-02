@@ -255,13 +255,8 @@
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
     if (e.dataTransfer) {
-      // Check if it's a clip being dragged
-      const types = Array.from(e.dataTransfer.types);
-      if (types.includes("application/json")) {
-        e.dataTransfer.dropEffect = "move";
-      } else {
-        e.dataTransfer.dropEffect = "copy";
-      }
+      e.dataTransfer.dropEffect =
+        $dragDropStore.dragType === "clip" ? "move" : "copy";
     }
 
     // Update preview position
@@ -300,38 +295,22 @@
   }
 
   function handleDrop(e: DragEvent) {
-    console.log("[Timeline] Drop event received", e);
     e.preventDefault();
 
-    if (!e.dataTransfer) {
-      console.warn("[Timeline] No dataTransfer in drop event");
-      return;
-    }
-
     try {
+      if (!e.dataTransfer) return;
+
       let dataStr = e.dataTransfer.getData("application/json");
-      console.log("[Timeline] getData('application/json'):", dataStr);
 
       if (!dataStr) {
         dataStr = e.dataTransfer.getData("text/plain");
-        console.log("[Timeline] getData('text/plain'):", dataStr);
       }
 
       if (!dataStr) {
-        console.warn("[Timeline] No drag data found in dataTransfer");
-        console.log("[Timeline] Available types:", e.dataTransfer.types);
         return;
       }
 
       const data = JSON.parse(dataStr);
-      console.log(
-        "[Timeline] Drop data:",
-        data,
-        "clientY:",
-        e.clientY,
-        "target:",
-        e.target
-      );
 
       if (data.type === "shader" && data.shaderId) {
         // Detect which track the drop occurred on
@@ -363,10 +342,7 @@
           trackId = getTrackAtPosition(e.clientY);
         }
 
-        console.log("Detected track ID:", trackId);
-
         if (!trackId) {
-          console.warn("No track found at drop position");
           return;
         }
 
@@ -384,7 +360,6 @@
         const targetTrackId = getTrackAtPosition(e.clientY);
 
         if (!targetTrackId) {
-          console.warn("No track found at drop position");
           return;
         }
 
@@ -401,7 +376,6 @@
         }
 
         if (!sourceClip || !sourceTrackId) {
-          console.warn("Source clip not found");
           return;
         }
 

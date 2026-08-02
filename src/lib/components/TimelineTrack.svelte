@@ -123,7 +123,10 @@
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
-    e.dataTransfer!.dropEffect = "copy";
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect =
+        $dragDropStore.dragType === "clip" ? "move" : "copy";
+    }
     isDragOver = true;
   }
 
